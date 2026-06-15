@@ -31,13 +31,13 @@ fi
 mkdir -p "$dest_goalspec"
 
 # Copy framework skeleton.
-for sub in runtime ai project active history artifacts; do
-  if [ -d "$SRC_ROOT/$sub" ]; then
-    cp -R "$SRC_ROOT/$sub" "$dest_goalspec/$sub"
-  else
-    mkdir -p "$dest_goalspec/$sub"
-  fi
-done
+# runtime/ holds code; templates live under runtime/templates/{active,project,ai}.
+cp -R "$SRC_ROOT/runtime" "$dest_goalspec/runtime"
+mkdir -p "$dest_goalspec/history" "$dest_goalspec/artifacts"
+# active/ and project/ start from templates.
+cp -R "$SRC_ROOT/runtime/templates/active" "$dest_goalspec/active"
+cp -R "$SRC_ROOT/runtime/templates/project" "$dest_goalspec/project"
+cp -R "$SRC_ROOT/runtime/templates/ai" "$dest_goalspec/ai"
 
 # Copy top-level dispatch.
 cp "$SRC_ROOT/goalspec" "$dest_goalspec/goalspec"

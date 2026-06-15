@@ -57,7 +57,7 @@ goalspec_path_forbidden() {
 # scope-check command body. Returns 0 if all good; prints blockers.
 goalspec_scope_check_run() {
   local base files errs=0
-  base="$(goalspec_state_get '.git.base_revision // ""')"
+  base="$(goalspec_state_get 'git.base_revision')"
   files="$(goalspec_git_changed_files "$base")"
   local cf="$GOALSPEC_ROOT/active/contract.yaml"
   [ -f "$cf" ] || { echo "no contract.yaml" >&2; return 1; }
@@ -101,10 +101,9 @@ goalspec_scope_check_run() {
   local f
   while IFS= read -r f; do
     [ -z "$f" ] && continue
-    case "$f" in
-      .goalspec/*) continue ;;
-    esac
     # global forbidden check (frozen contract / verdict / project / history)
+    # MUST be checked BEFORE the generic .goalspec/* skip so executor tampering
+    # with these authority files is caught (GOALC #10, §20, §26.6).
     if [ "$contract_status" = "frozen" ]; then
       case "$f" in
         .goalspec/active/contract.yaml|\
@@ -116,6 +115,9 @@ goalspec_scope_check_run() {
           ;;
       esac
     fi
+    case "$f" in
+      .goalspec/*) continue ;;
+    esac
     # forbidden by any WU forbidden_paths
     local wuu hit_forbidden=0
     for wuu in "${!WU_FORBIDDEN[@]}"; do

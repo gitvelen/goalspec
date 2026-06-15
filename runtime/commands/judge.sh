@@ -108,14 +108,9 @@ EOF
     fi
     # Append to verdict.yaml
     goalspec_init_list_file "$vf" verdicts
-    # Build entry preserving fields from file + judged_at
-    judged_at="$(goalspec_now)"
-    reason="$(yq e '.reason' "$file")"
-    next_action="$(yq e '.next_action // "none"' "$file")"
     tmp="$(mktemp)"
-    yq e -o=p '.' "$file" > "$tmp"
-    # ensure judged_at present
-    if ! grep -q '^judged_at' "$tmp"; then printf 'judged_at: "%s"\n' "$judged_at" >> "$tmp"; fi
+    # Copy the verdict file with judged_at injected.
+    yq ".judged_at = \"$(goalspec_now)\"" "$file" > "$tmp"
     yq e -i ".verdicts += load(\"$tmp\")" "$vf"
     /bin/rm -f "$tmp"
     # Update evidence_hash snapshot in state to track future stale.

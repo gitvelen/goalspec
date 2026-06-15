@@ -126,17 +126,15 @@ EOF
     rf="$GOALSPEC_ROOT/active/reviews.yaml"
     goalspec_init_list_file "$rf" reviews
     notes="$(yq e '.notes // ""' "$file")"
-    bqs="$(yq e -o=json '.blocking_questions // []' "$file")"
     tmp="$(mktemp)"
-    cat >"$tmp" <<YML
-kind: "${kind}"
-result: "${result}"
-target_hash: "${target_hash}"
-judged_at: "$(goalspec_now)"
-blocking_questions: ${bqs}
-notes: |
-  ${notes}
-YML
+    bjson="$(yq -o=json '.blocking_questions // []' "$file")"
+    yq -o=y --null-input \
+      ".kind = \"$kind\"" > "$tmp"
+    yq -i ".result = \"$result\"" "$tmp"
+    yq -i ".target_hash = \"$target_hash\"" "$tmp"
+    yq -i ".judged_at = \"$(goalspec_now)\"" "$tmp"
+    yq -i ".blocking_questions = ${bjson}" "$tmp"
+    yq -i ".notes = \"$notes\"" "$tmp"
     yq e -i ".reviews += load(\"$tmp\")" "$rf"
     /bin/rm -f "$tmp"
     echo "review applied: kind=$kind result=$result target_hash=$target_hash"
