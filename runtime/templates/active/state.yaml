@@ -1,0 +1,16 @@
+active_goal_id: null
+status: draft
+goal_hash: null
+contract_hash: null
+evidence_hash: null
+memory_patch_hash: null
+current_work_unit: null
+iteration: 0
+max_iterations: 6
+max_failures_per_work_unit: 2
+blocked_reason: null
+reopen_reason: null
+approvals: []
+git:
+  base_revision: null
+  current_revision: null

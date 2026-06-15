@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# goalspec — main dispatch entry.
+set -uo pipefail
+
+# Where is this script? (.goalspec/goalspec itself). The framework runtime sits next to it.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+GOALSPEC_BIN_DIR="$SCRIPT_DIR/runtime/commands"
+
+goalspec_help() {
+  cat <<'EOF'
+goalspec — goal-driven spec framework
+
+Usage:
+  goalspec <command> [args]
+
+Commands:
+  init                          Initialize .goalspec/ in current git repo
+  status [--json]               Show current state and next action
+  new-goal [text]               Create a new active goal
+  review prompt [kind]          Print a fresh-context review prompt
+                                (kind: intake|contract|criteria)
+  review apply <file>           Apply a review result YAML
+  compile                       Compile goal.md -> draft contract.yaml
+  approve <kind> [id]           Record human approval (kind: goal|contract|
+                                memory-patch|high-risk|regression-waiver)
+  freeze                        Freeze the reviewed contract
+  next                          Select the next work unit
+  evidence template [wu_id]     Print an evidence template for a work unit
+  evidence check                Validate evidence.yaml
+  judge prompt [wu_id]          Print a guardian judge prompt
+  judge apply <verdict.yaml>    Apply a guardian verdict file
+  scope-check                   Check that diffs are within scope
+  complete                      Run the completion gate
+  reopen [reason]               Make old contract/evidence/verdict stale
+  version                       Show version
+
+Environment:
+  Must be inside a project initialized by `goalspec init` (except for `init`
+  and `version`).
+
+See GOALSPEC.md and GOALC.md for full mechanism invariants.
+EOF
+}
+
+if [ $# -lt 1 ]; then
+  goalspec_help
+  exit 0
+fi
+
+cmd="$1"; shift || true
+
+# Commands that do not require an initialized project.
+case "$cmd" in
+  help|--help|-h)
+    goalspec_help
+    exit 0
+    ;;
+  version|--version|-V)
+    if [ -f "$SCRIPT_DIR/runtime/VERSION" ]; then
+      cat "$SCRIPT_DIR/runtime/VERSION"
+    else
+      echo "goalspec v1"
+    fi
+    exit 0
+    ;;
+  init)
+    exec bash "$GOALSPEC_BIN_DIR/init.sh" "$@"
+    ;;
+esac
+
+# All other commands require an initialized project.
+if [ ! -d "$SCRIPT_DIR/runtime" ] || [ ! -f "$SCRIPT_DIR/runtime/lib/common.sh" ]; then
+  echo "goalspec: runtime missing. Re-run 'goalspec init' from a clean copy." >&2
+  exit 2
+fi
+
+GOALSPEC_ROOT="$SCRIPT_DIR"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+export GOALSPEC_ROOT PROJECT_ROOT
+
+case "$cmd" in
+  status)            exec bash "$GOALSPEC_BIN_DIR/status.sh" "$@" ;;
+  new-goal)          exec bash "$GOALSPEC_BIN_DIR/new_goal.sh" "$@" ;;
+  review)            exec bash "$GOALSPEC_BIN_DIR/review.sh" "$@" ;;
+  compile)           exec bash "$GOALSPEC_BIN_DIR/compile.sh" "$@" ;;
+  approve)           exec bash "$GOALSPEC_BIN_DIR/approve.sh" "$@" ;;
+  freeze)            exec bash "$GOALSPEC_BIN_DIR/freeze.sh" "$@" ;;
+  next)              exec bash "$GOALSPEC_BIN_DIR/next.sh" "$@" ;;
+  evidence)          exec bash "$GOALSPEC_BIN_DIR/evidence.sh" "$@" ;;
+  judge)             exec bash "$GOALSPEC_BIN_DIR/judge.sh" "$@" ;;
+  scope-check)       exec bash "$GOALSPEC_BIN_DIR/scope_check.sh" "$@" ;;
+  complete)          exec bash "$GOALSPEC_BIN_DIR/complete.sh" "$@" ;;
+  reopen)            exec bash "$GOALSPEC_BIN_DIR/reopen.sh" "$@" ;;
+  *)
+    echo "goalspec: unknown command '$cmd' (see 'goalspec help')" >&2
+    exit 2
+    ;;
+esac
