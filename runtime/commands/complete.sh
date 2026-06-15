@@ -49,8 +49,12 @@ done <<<"$all_ids"
 # 4. required regressions pass (verdict on regression-related criteria).
 #    Skip if none.
 
-# 5. scope-check pass.
-if ! goalspec_scope_check_run; then
+# 5. scope-check pass. Run in 'system' role: at completion time the guardian
+# has lawfully written verdict.yaml / memory-patch.yaml etc. via judge apply /
+# approve; their integrity is enforced elsewhere by hash checks. The check
+# still enforces that no business file is unattributed and that frozen contract
+# / project / history are untouched.
+if ! GOALSPEC_SCOPE_ROLE=system goalspec_scope_check_run; then
   fail "scope-check failed (see above)"
 fi
 

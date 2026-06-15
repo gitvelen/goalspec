@@ -104,20 +104,51 @@ goalspec_scope_check_run() {
 
   # For each changed business file: must match a passed WU's allowed_paths and
   # not match any forbidden_paths from any WU.
+  # Role context: GOALSPEC_SCOPE_ROLE=executor (default) checks the strict
+  # executor view (no touching verdict/memory-patch/etc.). =system (used by
+  # `complete` after guardian writes) relaxes those active-write checks because
+  # their integrity is enforced by hash/context in judge apply / approve.
+  local role="${GOALSPEC_SCOPE_ROLE:-executor}"
   local unattributed=""
   local forbidden_hits=""
   local f
   while IFS= read -r f; do
     [ -z "$f" ] && continue
-    # global forbidden check (frozen contract / verdict / project / history)
-    # MUST be checked BEFORE the generic .goalspec/* skip so executor tampering
-    # with these authority files is caught (GOALC #10, §20, §26.6).
+    # Global forbidden check (frozen contract / project / history).
+    # These authority files cannot be modified by anyone after freeze without
+    # an explicit reopen. (GOALC #10, §20, §26.6.)
     if [ "$contract_status" = "frozen" ]; then
       case "$f" in
-        .goalspec/active/contract.yaml|\
-        .goalspec/active/verdict.yaml|\
+        .goalspec/active/contract.yaml)
+          # freeze writes contract_hash into contract.yaml itself, which makes
+          # the file permanently "dirty" relative to base_revision. Distinguish
+          # that benign self-write from a real executor edit by comparing the
+          # current content hash to the hash recorded at freeze time.
+          local rec_chash
+          rec_chash="$(goalspec_state_get 'contract_hash')"
+          if [ -n "$rec_chash" ] && [ "$rec_chash" != "null" ] && [ "$rec_chash" = "$(goalspec_contract_hash)" ]; then
+            : # contract content matches frozen snapshot; not a tampering event
+          else
+            forbidden_hits="${forbidden_hits}$f "
+          fi
+          continue
+          ;;
         .goalspec/project/*|\
         .goalspec/history/*)
+          forbidden_hits="${forbidden_hits}$f "
+          continue
+          ;;
+      esac
+    fi
+    # Executor-only forbidden: executor must never directly write the guardian/
+    # approval authority files. (Guardian writes verdict via `judge apply`;
+    # memory-patch is approved via `approve memory-patch`.)
+    if [ "$role" = "executor" ] && [ "$contract_status" = "frozen" ]; then
+      case "$f" in
+        .goalspec/active/verdict.yaml|\
+        .goalspec/active/memory-patch.yaml|\
+        .goalspec/active/reviews.yaml|\
+        .goalspec/active/regressions.yaml)
           forbidden_hits="${forbidden_hits}$f "
           continue
           ;;

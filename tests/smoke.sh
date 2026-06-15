@@ -164,6 +164,13 @@ ok freeze
 "$GS" next | grep -q "WU-001" || fail next
 ok next
 
+# 12a. status reports all nine required fields (GOALC #21)
+for fld in STATE NEXT_ACTION ROLE READ MAY_EDIT MUST_NOT_EDIT BLOCKERS CURRENT_WORK_UNIT COMPLETION_CONDITION; do
+  "$GS" status | grep -q "^${fld}:" || fail "status missing $fld"
+done
+"$GS" status --json | yq e '.state' - >/dev/null || fail "status --json broken"
+ok status-fields
+
 # 13. produce evidence (simulated browser automation)
 cat > "$TMP/index.html" <<'HTML'
 <!doctype html><html><body>snake</body></html>
@@ -202,6 +209,10 @@ echo "passed" > "$TMP/.goalspec/artifacts/EV-001.txt"
 # refresh evidence hash after the write
 EHASH="$(sha256sum "$TMP/.goalspec/active/evidence.yaml" | awk '{print "sha256:"$1}')"
 
+# 13a. scope-check passes: index.html is within WU-001 allowed_paths, but WU-001
+# has no pass verdict yet — so attribution will fail here. Apply after judge pass.
+# We instead verify scope-check works after judge pass below.
+
 # 14. judge apply for CRIT-001
 cat > "$WORK/verdict-001.yaml" <<YML
 work_unit_ref: WU-001
@@ -216,6 +227,19 @@ judged_by: guardian
 YML
 "$GS" judge apply "$WORK/verdict-001.yaml" >/dev/null || fail judge-001
 ok judge-001
+
+# 14a. scope-check (executor view): the guardian's verdict.yaml write is
+# allowed (judge apply protocol); business code (index.html) is within WU-001
+# allowed_paths and WU-001 has a pass verdict — so an explicit executor scope
+# check would still flag the post-judge verdict.yaml. We instead rely on
+# `complete` running scope-check in 'system' role internally. Verify here that
+# executor-side scope-check catches a NEW business file outside any WU scope:
+echo "x" > "$TMP/sneaky.txt"
+if "$GS" scope-check >/dev/null 2>&1; then
+  fail "scope-check should reject unattributed sneaky.txt"
+fi
+/bin/rm -f "$TMP/sneaky.txt"
+ok scope-check-rejects-unattributed
 
 # 15. judge apply for final criteria (CRIT-FINAL-001) — WU-001 also references EVIDREQ-001? Use WU-001
 cat > "$WORK/verdict-final.yaml" <<YML
