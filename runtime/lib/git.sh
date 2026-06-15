@@ -14,6 +14,9 @@ goalspec_git_head() {
 # List changed files vs base. Both committed and untracked/unstaged are returned.
 goalspec_git_changed_files() {
   local base="$1" head
+  # yq may return the literal string "null" for an unset YAML scalar; treat it
+  # the same as an empty base so we fall back to "diff vs HEAD + untracked".
+  [ "$base" = "null" ] && base=""
   head="$(goalspec_git_head)"
   if [ -z "$head" ]; then
     # No commits — list untracked

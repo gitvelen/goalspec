@@ -62,11 +62,19 @@ goalspec_scope_check_run() {
   local cf="$GOALSPEC_ROOT/active/contract.yaml"
   [ -f "$cf" ] || { echo "no contract.yaml" >&2; return 1; }
   local contract_status
-  contract_status="$(yq e '.status' "$cf")"
+  contract_status="$(yq e '.status' "$cf" 2>/dev/null)"
+  if [ -z "$contract_status" ] || [ "$contract_status" = "null" ]; then
+    echo "scope-check: contract.yaml cannot be parsed or has no status" >&2
+    return 1
+  fi
 
   # Build WU id -> allowed/forbidden tables.
   local n_wu idx wu_id
-  n_wu="$(yq e '.work_units | length' "$cf")"
+  n_wu="$(yq e '.work_units | length' "$cf" 2>/dev/null || echo "")"
+  if [ -z "$n_wu" ]; then
+    echo "scope-check: contract.yaml work_units cannot be parsed" >&2
+    return 1
+  fi
   declare -A WU_ALLOWED
   declare -A WU_FORBIDDEN
   declare -A WU_PASSED
