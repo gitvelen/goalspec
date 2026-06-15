@@ -52,6 +52,11 @@ SUITES=(
   "$TESTS_DIR/goalc_22_approval_only.sh"
 )
 
+# Filter to a subset when GOALC_ONLY is set (debugging).
+if [ -n "${GOALC_ONLY:-}" ]; then
+  SUITES=( "$TESTS_DIR/${GOALC_ONLY}.sh" )
+fi
+
 overall=0
 for s in "${SUITES[@]}"; do
   if [ ! -f "$s" ]; then

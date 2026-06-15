@@ -63,7 +63,8 @@ goalspec_new_goal_id() {
   local date part
   date="$(date -u +%Y%m%d)"
   part="$(goalspec_yaml_get "$(goalspec_active_dir)/state.yaml" '.active_goal_id' || echo "")"
-  if [ -z "$part" ]; then
+  # yq returns the literal "null" for an unset scalar; treat that as no id.
+  if [ -z "$part" ] || [ "$part" = "null" ]; then
     echo "GOAL-${date}-001"
   else
     echo "$part"

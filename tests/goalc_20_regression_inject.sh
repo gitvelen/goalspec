@@ -35,7 +35,7 @@ YML
 "$REPO_GS" review apply "$tmp/c.yaml" >/dev/null
 "$REPO_GS" approve contract >/dev/null
 out="$("$REPO_GS" freeze 2>&1)"
-if echo "$out" | grep -qi 'locked regression'; then
+if echo "$out" | /bin/grep -qi 'locked regression'; then
   ok "freeze flags locked regression injection"
 else
   bad "freeze did not flag locked regression injection"

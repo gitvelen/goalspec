@@ -11,7 +11,8 @@ TESTS_FAIL=0
 TESTS_SEEN=0
 
 # Per-suite scratch root. Each test gets a fresh temp git repo.
-TESTS_TMP_ROOT="${TESTS_TMP_ROOT:-/tmp/goalspec-tests-$$}"
+# Use suite-name + pid + random to avoid collisions across parallel/sequential runs.
+TESTS_TMP_ROOT="${TESTS_TMP_ROOT:-/tmp/goalspec-tests-$(basename "$0" .sh)-$$-$RANDOM}"
 mkdir -p "$TESTS_TMP_ROOT"
 trap '/bin/rm -rf "$TESTS_TMP_ROOT"' EXIT
 
@@ -26,7 +27,7 @@ fresh_repo() {
   REPO="$TESTS_TMP_ROOT/$name"
   /bin/rm -rf "$REPO"
   mkdir -p "$REPO"
-  cd "$REPO"
+  cd "$REPO" || { bad "fresh_repo: cd failed to $REPO"; return 1; }
   git init -q
   git config user.email t@t
   git config user.name t
@@ -36,8 +37,9 @@ fresh_repo() {
 # fresh_initialized_repo <name> — repo + init + initial baseline commit.
 fresh_initialized_repo() {
   fresh_repo "$1"
-  bash "$FRAMEWORK/goalspec" init >/dev/null
-  git add -A && git commit -q -m baseline
+  # Run init with explicit cwd so we don't depend on global PWD state.
+  ( cd "$REPO" && bash "$FRAMEWORK/goalspec" init >/dev/null ) || { bad "init failed"; return 1; }
+  ( cd "$REPO" && git add -A && git commit -q -m baseline ) || true
 }
 
 # make_minimal_goal_md <path> — writes a goal.md that satisfies the intake schema.

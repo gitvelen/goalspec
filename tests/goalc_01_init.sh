@@ -16,7 +16,7 @@ ok "init in empty git repo"
 
 # status must give a NEXT_ACTION line that points at new-goal (no active goal yet).
 status_out="$("$REPO_GS" status)"
-echo "$status_out" | grep -q '^NEXT_ACTION:' || bad "status missing NEXT_ACTION"
-echo "$status_out" | grep -qi 'new-goal'     || bad "NEXT_ACTION does not mention new-goal"
+echo "$status_out" | /bin/grep -q '^NEXT_ACTION:' || bad "status missing NEXT_ACTION"
+echo "$status_out" | /bin/grep -qi 'new-goal'     || bad "NEXT_ACTION does not mention new-goal"
 
 [ "$TESTS_FAIL" -eq 0 ]

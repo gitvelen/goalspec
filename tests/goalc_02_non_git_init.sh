@@ -13,6 +13,6 @@ fi
 
 # error message should hint at git init.
 err="$(bash "$FRAMEWORK/goalspec" init 2>&1 >/dev/null || true)"
-echo "$err" | grep -qi 'git' || bad "error does not mention git"
+echo "$err" | /bin/grep -qi 'git' || bad "error does not mention git"
 
 [ "$TESTS_FAIL" -eq 0 ]

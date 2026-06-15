@@ -33,7 +33,7 @@ git add -A && git commit -q -m baseline || true
 ok init
 
 # 2. status
-"$GS" status | grep -q NEXT_ACTION || fail status
+"$GS" status | /bin/grep -q NEXT_ACTION || fail status
 ok status
 
 # 3. new-goal
@@ -161,12 +161,12 @@ ok approve-contract
 ok freeze
 
 # 12. next
-"$GS" next | grep -q "WU-001" || fail next
+"$GS" next | /bin/grep -q "WU-001" || fail next
 ok next
 
 # 12a. status reports all nine required fields (GOALC #21)
 for fld in STATE NEXT_ACTION ROLE READ MAY_EDIT MUST_NOT_EDIT BLOCKERS CURRENT_WORK_UNIT COMPLETION_CONDITION; do
-  "$GS" status | grep -q "^${fld}:" || fail "status missing $fld"
+  "$GS" status | /bin/grep -q "^${fld}:" || fail "status missing $fld"
 done
 "$GS" status --json | yq e '.state' - >/dev/null || fail "status --json broken"
 ok status-fields

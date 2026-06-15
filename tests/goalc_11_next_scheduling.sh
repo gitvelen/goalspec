@@ -66,7 +66,7 @@ YML
 
 # next should return WU-001
 out="$("$REPO_GS" next)"
-echo "$out" | grep -q 'WU-001' && ok "next returns WU-001 first"
+echo "$out" | /bin/grep -q 'WU-001' && ok "next returns WU-001 first"
 
 # Build a verdict: fail for CRIT-001.
 mkdir -p "$REPO/src"; echo x > "$REPO/src/a.txt"
@@ -106,14 +106,14 @@ YML
 
 # next should return WU-001 again (same WU on fail)
 out="$("$REPO_GS" next)"
-if echo "$out" | grep -q 'CURRENT_WORK_UNIT: WU-001'; then
+if echo "$out" | /bin/grep -q 'CURRENT_WORK_UNIT: WU-001'; then
   ok "next returns same WU-001 on fail verdict"
 else
   bad "next did not return WU-001 after fail; got: $out"
 fi
 
 # Also verify WU-002 is never returned before WU-001 passes.
-if echo "$out" | grep -q 'WU-002'; then
+if echo "$out" | /bin/grep -q 'WU-002'; then
   bad "next returned WU-002 despite WU-001 failing"
 fi
 

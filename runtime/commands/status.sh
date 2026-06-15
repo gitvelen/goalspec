@@ -19,6 +19,11 @@ state_file="$GOALSPEC_ROOT/active/state.yaml"
 if [ -f "$state_file" ]; then
   STATE="$(yq e '.status' "$state_file")"
   CWU="$(yq e '.current_work_unit // "(none)"' "$state_file")"
+  # If active_goal_id is null, there is no active goal yet — route to new-goal.
+  gid="$(yq e '.active_goal_id // ""' "$state_file")"
+  if [ -z "$gid" ] || [ "$gid" = "null" ]; then
+    STATE="(no active goal)"
+  fi
 fi
 
 # Derive NEXT_ACTION / ROLE / boundaries from state.

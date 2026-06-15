@@ -22,7 +22,7 @@ YML
 # next output must include all nine fields.
 next_out="$("$REPO_GS" next)"
 for fld in STATE NEXT_ACTION ROLE READ MAY_EDIT MUST_NOT_EDIT BLOCKERS CURRENT_WORK_UNIT COMPLETION_CONDITION; do
-  if echo "$next_out" | grep -q "^${fld}:"; then
+  if echo "$next_out" | /bin/grep -q "^${fld}:"; then
     :
   else
     bad "next missing $fld"
@@ -33,7 +33,7 @@ ok "next has all nine fields"
 # status output and --json.
 status_out="$("$REPO_GS" status)"
 for fld in STATE NEXT_ACTION ROLE READ MAY_EDIT MUST_NOT_EDIT BLOCKERS CURRENT_WORK_UNIT COMPLETION_CONDITION; do
-  echo "$status_out" | grep -q "^${fld}:" || bad "status missing $fld"
+  echo "$status_out" | /bin/grep -q "^${fld}:" || bad "status missing $fld"
 done
 ok "status has all nine fields"
 
