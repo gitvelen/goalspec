@@ -39,7 +39,16 @@ goalspec_goal_hash() {
 }
 
 goalspec_contract_hash() {
-  goalspec_hash_file "$GOALSPEC_ROOT/active/contract.yaml"
+  local cf="$GOALSPEC_ROOT/active/contract.yaml"
+  [ -f "$cf" ] || { echo ""; return 1; }
+  # Exclude contract_hash (self-reference) and status from the hash, since
+  # freeze writes contract_hash into the file and toggles status: this would
+  # otherwise make every frozen contract appear stale vs its own stored hash.
+  local stripped
+  stripped="$(yq e 'del(.contract_hash) | del(.status)' "$cf")"
+  local h
+  h="$(printf '%s' "$stripped" | sha256sum | awk '{print $1}')"
+  echo "sha256:${h}"
 }
 
 goalspec_evidence_hash() {

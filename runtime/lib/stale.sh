@@ -11,28 +11,28 @@
 goalspec_stale_goal_changed() {
   local cur cur_rec
   cur="$(goalspec_goal_hash)"
-  cur_rec="$(goalspec_state_get '.goal_hash // ""')"
+  cur_rec="$(goalspec_state_get 'goal_hash')"
   [ -n "$cur_rec" ] && [ "$cur" != "$cur_rec" ]
 }
 
 goalspec_stale_contract_changed() {
   local cur cur_rec
   cur="$(goalspec_contract_hash)"
-  cur_rec="$(goalspec_state_get '.contract_hash // ""')"
+  cur_rec="$(goalspec_state_get 'contract_hash')"
   [ -n "$cur_rec" ] && [ "$cur" != "$cur_rec" ]
 }
 
 goalspec_stale_evidence_changed() {
   local cur cur_rec
   cur="$(goalspec_evidence_hash)"
-  cur_rec="$(goalspec_state_get '.evidence_hash // ""')"
+  cur_rec="$(goalspec_state_get 'evidence_hash')"
   [ -n "$cur_rec" ] && [ "$cur" != "$cur_rec" ]
 }
 
 goalspec_stale_memory_patch_changed() {
   local cur cur_rec
   cur="$(goalspec_memory_patch_hash)"
-  cur_rec="$(goalspec_state_get '.memory_patch_hash // ""')"
+  cur_rec="$(goalspec_state_get 'memory_patch_hash')"
   [ -n "$cur_rec" ] && [ "$cur" != "$cur_rec" ]
 }
 

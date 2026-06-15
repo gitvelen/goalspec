@@ -34,15 +34,14 @@ goalspec_git_changed_files() {
 # Is the business worktree dirty? (excludes .goalspec/active compiled artifacts.)
 goalspec_git_business_dirty() {
   local base files f
-  base="$(goalspec_state_get '.git.base_revision // ""')"
+  base="$(goalspec_state_get 'git.base_revision')"
   files="$(goalspec_git_changed_files "$base")"
   local found=0
   while IFS= read -r f; do
     [ -z "$f" ] && continue
     case "$f" in
-      .goalspec/active/*|.goalspec/history/*) continue ;;
-      .goalspec/goalspec|.goalspec/runtime/*|.goalspec/ai/*|.goalspec/project/*) continue ;;
-      .goalspec/AGENTS.md|.goalspec/CLAUDE.md) continue ;;
+      .goalspec/*) continue ;;   # shell glob: .goalspec/<anything> incl slashes
+      AGENTS.md|CLAUDE.md) continue ;;
       *) found=1; break ;;
     esac
   done <<<"$files"

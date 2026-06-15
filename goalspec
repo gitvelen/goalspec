@@ -77,6 +77,12 @@ fi
 
 GOALSPEC_ROOT="$SCRIPT_DIR"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+# Prefer the .goalspec/ in the current working directory if present (so the
+# framework can be invoked from anywhere with the project-local copy used).
+if [ -d "$PWD/.goalspec" ] && [ "$PWD/.goalspec" != "$SCRIPT_DIR" ]; then
+  GOALSPEC_ROOT="$PWD/.goalspec"
+  PROJECT_ROOT="$PWD"
+fi
 export GOALSPEC_ROOT PROJECT_ROOT
 
 case "$cmd" in
