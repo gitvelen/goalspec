@@ -80,10 +80,10 @@ EOF
       fi
       i=$((i+1))
     done
-    # If verdict=pass, the cited evidence must satisfy the criteria's evidence_requirement_refs.
     verdict="$(yq e '.verdict' "$file")"
+    wu_ref="$(yq e '.work_unit_ref' "$file")"
+    # If verdict=pass, the cited evidence must satisfy the criteria's evidence_requirement_refs.
     if [ "$verdict" = "pass" ]; then
-      wu_ref="$(yq e '.work_unit_ref' "$file")"
       # Required evidence requirements for this WU+criteria
       reqs="$(yq e ".work_units[] | select(.id == \"$wu_ref\") | .evidence_requirement_refs.[]" "$cf")"
       # Collect evidence_requirement_refs actually cited by the evidence used.
