@@ -8,13 +8,16 @@ set -uo pipefail
 SRC_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SRC_PROJECT_ROOT="$(dirname "$SRC_ROOT")"
 
-dest_root="$PWD"
-dest_goalspec="$dest_root/.goalspec"
-
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
-  echo "usage: goalspec init" >&2
+  echo "usage: goalspec init [project-path]   (default: current directory)" >&2
   exit 0
 fi
+
+# Optional target project path (default: current directory). Lets
+# `goalspec install <path>` / `goalspec init <path>` target an explicit project
+# without having to cd into it first.
+dest_root="${1:-$PWD}"
+dest_goalspec="$dest_root/.goalspec"
 
 # Must be a git repo.
 if ! git -C "$dest_root" rev-parse --git-dir >/dev/null 2>&1; then

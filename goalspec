@@ -15,7 +15,10 @@ Usage:
   goalspec <command> [args]
 
 Commands:
-  init                          Initialize .goalspec/ in current git repo
+  init [project-path]           Initialize .goalspec/ in current git repo
+                                (or into <project-path> if given)
+  install [project-path]        Alias for init — install into an explicit
+                                project directory (no cd needed)
   status [--json]               Show current state and next action
   new-goal [text]               Create a new active goal
   review prompt [kind]          Print a fresh-context review prompt
@@ -64,7 +67,9 @@ case "$cmd" in
     fi
     exit 0
     ;;
-  init)
+  init|install)
+    # `install <path>` is an alias for `init <path>`: copy the framework into an
+    # explicit project directory (default: current dir), no cd required.
     exec bash "$GOALSPEC_BIN_DIR/init.sh" "$@"
     ;;
 esac
