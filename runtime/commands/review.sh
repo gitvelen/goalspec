@@ -97,6 +97,11 @@ EOF
             echo "intake review cannot pass: unresolved blocking questions present" >&2
             exit 1
           fi
+          # goal.md is now the reviewed baseline: record its hash so a later edit
+          # is detected as goal_changed. new_goal.sh sets the initial template
+          # hash; without this update state.goal_hash stays stale forever and
+          # goalspec_stale_goal_changed / status BLOCKERS misreport goal_changed.
+          yq e -i ".goal_hash = \"$(goalspec_goal_hash)\"" "$GOALSPEC_ROOT/active/state.yaml"
         fi
         # transition draft -> intake_reviewed only when pass
         cur="$(yq e '.status' "$GOALSPEC_ROOT/active/state.yaml")"

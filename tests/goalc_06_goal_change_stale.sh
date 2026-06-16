@@ -22,6 +22,14 @@ YML
 "$REPO_GS" freeze >/dev/null
 ok "reached freeze"
 
+# Regression (state.goal_hash baseline): with no goal.md edit since intake review,
+# status must NOT misreport goal_changed. new_goal.sh records a template goal_hash;
+# intake review apply must update state.goal_hash to the actually-reviewed content,
+# otherwise goalspec_stale_goal_changed is true forever and BLOCKERS misreports.
+"$REPO_GS" status 2>/dev/null | grep -q 'goal_changed' \
+  && bad "status misreports goal_changed before any goal.md edit" \
+  || ok "no false goal_changed before edit"
+
 # Tamper with goal.md
 echo "## new section added" >> "$REPO/.goalspec/active/goal.md"
 
