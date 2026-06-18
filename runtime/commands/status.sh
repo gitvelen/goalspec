@@ -6,7 +6,7 @@ mode="text"
 if [ "${1:-}" = "--json" ]; then mode="json"; fi
 
 STATE="(no active goal)"
-NEXT_ACTION="Run: goalspec new-goal"
+NEXT_ACTION="Run: goalspec intake begin [text] for conversation capture, or goalspec new-goal [--source <path>] [text]"
 ROLE="intake"
 READ=".goalspec/ai/core.md, .goalspec/ai/intake.md"
 MAY_EDIT=".goalspec/active/goal.md, .goalspec/active/questions.yaml"
@@ -29,11 +29,32 @@ fi
 # Derive NEXT_ACTION / ROLE / boundaries from state.
 case "$STATE" in
   draft)
-    NEXT_ACTION="Write active/goal.md (intake agent), then: goalspec review prompt intake -> goalspec review apply"
-    ROLE="intake"
-    READ=".goalspec/ai/core.md, .goalspec/ai/intake.md, .goalspec/active/goal.md"
-    MAY_EDIT=".goalspec/active/goal.md, .goalspec/active/questions.yaml"
-    MUST_NOT_EDIT=".goalspec/active/contract.yaml, .goalspec/active/verdict.yaml, .goalspec/project/**"
+    intake_status="$(yq e '.intake_session.status // "not_started"' "$state_file" 2>/dev/null || echo "not_started")"
+    if [ "$intake_status" = "collecting" ]; then
+      NEXT_ACTION="Record begin/end conversation in active/intake-conversation.md; add sources with goalspec intake add-source <path>; then: goalspec intake end"
+      ROLE="intake"
+      READ=".goalspec/ai/core.md, .goalspec/ai/intake.md, .goalspec/active/intake-conversation.md, .goalspec/active/intake-sources.yaml"
+      MAY_EDIT=".goalspec/active/intake-conversation.md, .goalspec/active/intake-sources.yaml, .goalspec/active/questions.yaml, .goalspec/artifacts/intake/**"
+      MUST_NOT_EDIT=".goalspec/active/goal.md, .goalspec/active/contract.yaml, .goalspec/active/verdict.yaml, .goalspec/project/**"
+    elif goalspec_intake_has_sources && { ! yq e '[.approvals[] | select(.kind == "intake-package")] | length' "$state_file" 2>/dev/null | grep -q '^[1-9]'; }; then
+      NEXT_ACTION="Write active/intake-capture.md and active/constraint-suggestions.yaml from conversation/source material, then ask human confirmation and run: goalspec approve intake-package -> goalspec intake apply-suggestions"
+      ROLE="intake"
+      READ=".goalspec/ai/core.md, .goalspec/ai/intake.md, .goalspec/active/intake-conversation.md, .goalspec/active/intake-sources.yaml"
+      MAY_EDIT=".goalspec/active/intake-capture.md, .goalspec/active/constraint-suggestions.yaml, .goalspec/active/questions.yaml"
+      MUST_NOT_EDIT=".goalspec/active/goal.md, .goalspec/active/contract.yaml, .goalspec/active/verdict.yaml, .goalspec/project/**"
+    elif goalspec_intake_has_sources && goalspec_approval_stale intake-package; then
+      NEXT_ACTION="Re-approve changed active/intake-capture.md / active/constraint-suggestions.yaml: goalspec approve intake-package, then goalspec intake apply-suggestions"
+      ROLE="human"
+      READ=".goalspec/active/intake-capture.md, .goalspec/active/constraint-suggestions.yaml, .goalspec/active/intake-conversation.md"
+      MAY_EDIT="(nothing)"
+      MUST_NOT_EDIT=".goalspec/active/goal.md, .goalspec/active/contract.yaml, business code"
+    else
+      NEXT_ACTION="Write active/goal.md from approved intake package and/or source snapshots, including goal constraints from active/constraint-suggestions.yaml, then: goalspec review prompt intake -> goalspec review apply"
+      ROLE="intake"
+      READ=".goalspec/ai/core.md, .goalspec/ai/intake.md, .goalspec/active/goal.md, .goalspec/active/intake-capture.md, .goalspec/active/constraint-suggestions.yaml, .goalspec/active/intake-sources.yaml"
+      MAY_EDIT=".goalspec/active/goal.md, .goalspec/active/questions.yaml"
+      MUST_NOT_EDIT=".goalspec/active/contract.yaml, .goalspec/active/verdict.yaml, .goalspec/project/**"
+    fi
     ;;
   intake_reviewed)
     NEXT_ACTION="Compile draft contract: goalspec compile"

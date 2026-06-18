@@ -40,6 +40,46 @@ wu_criteria_all_pass() {
   return 0
 }
 
+# Helper: max trailing-consecutive non-pass verdict streak across the WU's
+# bound criteria. No verdict file / no verdicts -> 0.
+consecutive_failures_for_wu() {
+  local wu="$1" crits c vlist v streak max=0
+  [ -f "$vf" ] || { echo 0; return; }
+  crits="$(yq e ".work_units[] | select(.id == \"$wu\") | .criteria_refs[]" "$cf" 2>/dev/null)"
+  [ -z "$crits" ] && { echo 0; return; }
+  while IFS= read -r c; do
+    [ -z "$c" ] && continue
+    vlist="$(yq e "[.verdicts[] | select(.criteria_ref == \"$c\")] | .[].verdict" "$vf" 2>/dev/null)"
+    [ -z "$vlist" ] && continue
+    streak=0
+    while IFS= read -r v; do
+      if [ "$v" != "pass" ]; then streak=$((streak+1)); else streak=0; fi
+    done <<<"$vlist"
+    [ "$streak" -gt "$max" ] && max=$streak
+  done <<<"$crits"
+  echo "$max"
+}
+
+# Hard-stop gate. Echoes a reason and returns 0 (true) if a cap is exceeded —
+# the caller must refuse to re-hand the WU. Returns 1 if it is safe to continue.
+# Caps live in state.yaml (GOALSPEC §6): max_iterations / max_failures_per_work_unit.
+hard_stop_blocked() {
+  local wu="$1" max_iter max_fail iter cons
+  max_iter="$(yq e '.max_iterations // 6' "$state_file")"
+  max_fail="$(yq e '.max_failures_per_work_unit // 2' "$state_file")"
+  iter="$(yq e '.iteration // 0' "$state_file")"
+  if [ "${iter:-0}" -ge "${max_iter:-6}" ]; then
+    echo "work unit $wu hit the iteration cap (iteration=$iter, max_iterations=$max_iter) without passing. Inspect .goalspec/active/trace.yaml and .goalspec/active/evidence.yaml for the root cause, or run 'goalspec reopen' if the contract/criteria/scope are wrong."
+    return 0
+  fi
+  cons="$(consecutive_failures_for_wu "$wu")"
+  if [ "${cons:-0}" -ge "${max_fail:-2}" ]; then
+    echo "work unit $wu has $cons consecutive non-pass verdicts (max_failures_per_work_unit=$max_fail). Read the latest guardian verdict in .goalspec/active/verdict.yaml, fix the reported cause, or run 'goalspec reopen'."
+    return 0
+  fi
+  return 1
+}
+
 # Decide which WU to return.
 pick=""
 if [ -n "$cur" ]; then
@@ -89,6 +129,17 @@ if [ -z "$pick" ]; then
   echo "next: all work units' criteria have pass verdicts; guardian must pass final criteria to complete."
   echo "next_action: goalspec judge prompt (for final criteria) -> goalspec judge apply -> goalspec complete"
   exit 0
+fi
+
+# Hard-stop gate (GOALSPEC §6). Re-handing the SAME work unit because it still
+# has not passed must respect the iteration / consecutive-failure caps —
+# otherwise the loop re-enters the stuck WU until someone notices
+# (loop-engineering "hard stop" rule; the Ralph Wiggum failure mode).
+if [ -n "$cur" ] && [ "$pick" = "$cur" ]; then
+  if reason="$(hard_stop_blocked "$pick")"; then
+    echo "next blocked: $reason" >&2
+    exit 1
+  fi
 fi
 
 # Record current WU and bump iteration if same.

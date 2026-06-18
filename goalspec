@@ -19,14 +19,22 @@ Commands:
                                 (or into <project-path> if given)
   install [project-path]        Alias for init — install into an explicit
                                 project directory (no cd needed)
+  install-skill [dest-dir]      Install bundled Goalspec AI skill
+  install-ai <tool>             Install AI tool adapter (codex|claude|lingma)
   status [--json]               Show current state and next action
-  new-goal [text]               Create a new active goal
+  intake begin [text]           Start explicit conversation intake capture
+  intake add-source <path>      Add a file or directory source to intake
+  intake end                    Close conversation intake capture
+  intake apply-suggestions      Apply approved intake constraint suggestions
+  new-goal [--source <path>] [text]
+                                Create a new active goal and optional source
   review prompt [kind]          Print a fresh-context review prompt
                                 (kind: intake|contract|criteria)
   review apply <file>           Apply a review result YAML
   compile                       Compile goal.md -> draft contract.yaml
   approve <kind> [id]           Record human approval (kind: goal|contract|
-                                memory-patch|high-risk|regression-waiver)
+                                memory-patch|intake-package|intake-capture|
+                                high-risk|regression-waiver)
   freeze                        Freeze the reviewed contract
   next                          Select the next work unit
   evidence template [wu_id]     Print an evidence template for a work unit
@@ -34,15 +42,20 @@ Commands:
   judge prompt [wu_id]          Print a guardian judge prompt
   judge apply <verdict.yaml>    Apply a guardian verdict file
   scope-check                   Check that diffs are within scope
+  validate [target] [--strict] [--json]
+                                Validate active/ artifacts (collect-all, no
+                                fail-fast). target: goal|contract|evidence|
+                                verdict|state|intake|all (default all)
   complete                      Run the completion gate
   reopen [reason]               Make old contract/evidence/verdict stale
+  yq which|install              Manage the bundled yq dependency
+                                (which: show resolved binary; install: fetch a
+                                matching mikefarah yq v4 into runtime/bin/)
   version                       Show version
 
 Environment:
   Must be inside a project initialized by `goalspec init` (except for `init`
   and `version`).
-
-See GOALSPEC.md and GOALC.md for full mechanism invariants.
 EOF
 }
 
@@ -72,6 +85,17 @@ case "$cmd" in
     # explicit project directory (default: current dir), no cd required.
     exec bash "$GOALSPEC_BIN_DIR/init.sh" "$@"
     ;;
+  install-skill)
+    exec bash "$GOALSPEC_BIN_DIR/install_skill.sh" "$@"
+    ;;
+  install-ai)
+    exec bash "$GOALSPEC_BIN_DIR/install_ai.sh" "$@"
+    ;;
+  yq)
+    # Handled in the pre-init block on purpose: `yq install` must be runnable
+    # when NO yq is available yet (load.sh's yq gate would otherwise exit 1).
+    exec bash "$GOALSPEC_BIN_DIR/yq_cmd.sh" "$@"
+    ;;
 esac
 
 # All other commands require an initialized project.
@@ -92,6 +116,7 @@ export GOALSPEC_ROOT PROJECT_ROOT
 
 case "$cmd" in
   status)            exec bash "$GOALSPEC_BIN_DIR/status.sh" "$@" ;;
+  intake)            exec bash "$GOALSPEC_BIN_DIR/intake.sh" "$@" ;;
   new-goal)          exec bash "$GOALSPEC_BIN_DIR/new_goal.sh" "$@" ;;
   review)            exec bash "$GOALSPEC_BIN_DIR/review.sh" "$@" ;;
   compile)           exec bash "$GOALSPEC_BIN_DIR/compile.sh" "$@" ;;
@@ -101,6 +126,7 @@ case "$cmd" in
   evidence)          exec bash "$GOALSPEC_BIN_DIR/evidence.sh" "$@" ;;
   judge)             exec bash "$GOALSPEC_BIN_DIR/judge.sh" "$@" ;;
   scope-check)       exec bash "$GOALSPEC_BIN_DIR/scope_check.sh" "$@" ;;
+  validate)          exec bash "$GOALSPEC_BIN_DIR/validate.sh" "$@" ;;
   complete)          exec bash "$GOALSPEC_BIN_DIR/complete.sh" "$@" ;;
   reopen)            exec bash "$GOALSPEC_BIN_DIR/reopen.sh" "$@" ;;
   *)

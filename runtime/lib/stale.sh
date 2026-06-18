@@ -7,33 +7,56 @@
 #  - contract change -> stale evidence, verdict, complete basis
 #  - evidence change -> stale verdicts referencing the old evidence hash
 #  - memory-patch change -> stale memory-patch approval
+#  - intake-capture change -> stale intake-capture approval
+#  - intake package change -> stale intake-package approval/application
 
 goalspec_stale_goal_changed() {
   local cur cur_rec
   cur="$(goalspec_goal_hash)"
   cur_rec="$(goalspec_state_get 'goal_hash')"
-  [ -n "$cur_rec" ] && [ "$cur" != "$cur_rec" ]
+  [ -n "$cur_rec" ] && [ "$cur_rec" != "null" ] && [ "$cur" != "$cur_rec" ]
 }
 
 goalspec_stale_contract_changed() {
   local cur cur_rec
   cur="$(goalspec_contract_hash)"
   cur_rec="$(goalspec_state_get 'contract_hash')"
-  [ -n "$cur_rec" ] && [ "$cur" != "$cur_rec" ]
+  [ -n "$cur_rec" ] && [ "$cur_rec" != "null" ] && [ "$cur" != "$cur_rec" ]
 }
 
 goalspec_stale_evidence_changed() {
   local cur cur_rec
   cur="$(goalspec_evidence_hash)"
   cur_rec="$(goalspec_state_get 'evidence_hash')"
-  [ -n "$cur_rec" ] && [ "$cur" != "$cur_rec" ]
+  [ -n "$cur_rec" ] && [ "$cur_rec" != "null" ] && [ "$cur" != "$cur_rec" ]
 }
 
 goalspec_stale_memory_patch_changed() {
   local cur cur_rec
   cur="$(goalspec_memory_patch_hash)"
   cur_rec="$(goalspec_state_get 'memory_patch_hash')"
-  [ -n "$cur_rec" ] && [ "$cur" != "$cur_rec" ]
+  [ -n "$cur_rec" ] && [ "$cur_rec" != "null" ] && [ "$cur" != "$cur_rec" ]
+}
+
+goalspec_stale_intake_capture_changed() {
+  local cur cur_rec
+  cur="$(goalspec_intake_capture_hash)"
+  cur_rec="$(goalspec_state_get 'intake_capture_hash')"
+  [ -n "$cur_rec" ] && [ "$cur_rec" != "null" ] && [ "$cur" != "$cur_rec" ]
+}
+
+goalspec_stale_intake_package_changed() {
+  local cur cur_rec
+  cur="$(goalspec_intake_package_hash)"
+  cur_rec="$(goalspec_state_get 'intake_package_hash')"
+  [ -n "$cur_rec" ] && [ "$cur_rec" != "null" ] && [ "$cur" != "$cur_rec" ]
+}
+
+goalspec_stale_constraint_suggestions_applied() {
+  local cur cur_rec
+  cur="$(goalspec_constraint_suggestions_hash)"
+  cur_rec="$(goalspec_state_get 'constraint_suggestions_applied_hash')"
+  [ -n "$cur_rec" ] && [ "$cur_rec" != "null" ] && [ "$cur" != "$cur_rec" ]
 }
 
 # Returns 0 (true) if a stored review of given kind is stale.
@@ -66,6 +89,8 @@ goalspec_approval_stale() {
     goal) cur="$(goalspec_goal_hash)" ;;
     contract) cur="$(goalspec_contract_hash)" ;;
     memory-patch) cur="$(goalspec_memory_patch_hash)" ;;
+    intake-capture) cur="$(goalspec_intake_capture_hash)" ;;
+    intake-package) cur="$(goalspec_intake_package_hash)" ;;
     high-risk) return 1 ;; # bound to action id not content hash
     regression-waiver) return 1 ;;
     *) return 0 ;;
@@ -87,6 +112,15 @@ goalspec_stale_blockers() {
   fi
   if goalspec_stale_memory_patch_changed; then
     out="${out}memory_patch_changed "
+  fi
+  if goalspec_stale_intake_capture_changed; then
+    out="${out}intake_capture_changed "
+  fi
+  if goalspec_stale_intake_package_changed; then
+    out="${out}intake_package_changed "
+  fi
+  if goalspec_stale_constraint_suggestions_applied; then
+    out="${out}constraint_suggestions_applied_changed "
   fi
   echo "$out"
 }

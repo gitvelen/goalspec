@@ -58,3 +58,17 @@ goalspec_evidence_hash() {
 goalspec_memory_patch_hash() {
   goalspec_hash_file "$GOALSPEC_ROOT/active/memory-patch.yaml"
 }
+
+goalspec_intake_capture_hash() {
+  goalspec_hash_file "$GOALSPEC_ROOT/active/intake-capture.md"
+}
+
+goalspec_constraint_suggestions_hash() {
+  goalspec_hash_file "$GOALSPEC_ROOT/active/constraint-suggestions.yaml"
+}
+
+goalspec_intake_package_hash() {
+  goalspec_hash_files \
+    "$GOALSPEC_ROOT/active/intake-capture.md" \
+    "$GOALSPEC_ROOT/active/constraint-suggestions.yaml"
+}

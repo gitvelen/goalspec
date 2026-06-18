@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # tests/run_all.sh — runs the entire GOALC acceptance suite.
 # Each test exits 0 on pass, non-zero on fail. This script aggregates results.
+# Suite list is discovered automatically: smoke.sh runs first (positive
+# lifecycle), then every goalc_*.sh in numeric-prefix order. To add a test,
+# just drop a goalc_NN_<name>.sh file in tests/ — no registration needed.
 set -uo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,32 +28,21 @@ run_suite() {
   fi
 }
 
-# Smaller suites first (positive lifecycle), then negative per GOALC clause.
-SUITES=(
-  "$TESTS_DIR/smoke.sh"
-  "$TESTS_DIR/goalc_01_init.sh"
-  "$TESTS_DIR/goalc_02_non_git_init.sh"
-  "$TESTS_DIR/goalc_03_compile_freeze_next_blocked.sh"
-  "$TESTS_DIR/goalc_04_intake_schema.sh"
-  "$TESTS_DIR/goalc_05_contract_freeze_schema.sh"
-  "$TESTS_DIR/goalc_06_goal_change_stale.sh"
-  "$TESTS_DIR/goalc_07_contract_change_stale.sh"
-  "$TESTS_DIR/goalc_08_mpatch_change_stale.sh"
-  "$TESTS_DIR/goalc_09_freeze_dirty.sh"
-  "$TESTS_DIR/goalc_10_scope_check_frozen.sh"
-  "$TESTS_DIR/goalc_11_next_scheduling.sh"
-  "$TESTS_DIR/goalc_12_complete_no_verdict.sh"
-  "$TESTS_DIR/goalc_13_executor_self_complete.sh"
-  "$TESTS_DIR/goalc_14_judge_apply_invalid.sh"
-  "$TESTS_DIR/goalc_15_blocking_question.sh"
-  "$TESTS_DIR/goalc_16_complete_nonpass.sh"
-  "$TESTS_DIR/goalc_17_complete_success.sh"
-  "$TESTS_DIR/goalc_18_complete_artifacts.sh"
-  "$TESTS_DIR/goalc_19_complete_attribution.sh"
-  "$TESTS_DIR/goalc_20_regression_inject.sh"
-  "$TESTS_DIR/goalc_21_status_fields.sh"
-  "$TESTS_DIR/goalc_22_approval_only.sh"
-)
+# Build the suite list. smoke.sh first (comprehensive positive lifecycle), then
+# goalc_*.sh sorted by the NN numeric prefix so clauses run in spec order.
+build_suites() {
+  SUITES=( "$TESTS_DIR/smoke.sh" )
+  # shellcheck disable=SC2012,SC2207
+  local found
+  found="$(ls "$TESTS_DIR"/goalc_*.sh 2>/dev/null | sort -t_ -k2 -n)"
+  if [ -n "$found" ]; then
+    while IFS= read -r f; do
+      SUITES+=( "$f" )
+    done <<<"$found"
+  fi
+}
+
+build_suites
 
 # Filter to a subset when GOALC_ONLY is set (debugging).
 if [ -n "${GOALC_ONLY:-}" ]; then

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# reopen.sh — make old contract/evidence/verdict stale.
+# reopen.sh — mark the current goal/contract basis for re-review (reopen_required).
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)/load.sh"
 
@@ -8,8 +8,12 @@ state_file="$GOALSPEC_ROOT/active/state.yaml"
 
 # Mark reopen.
 yq e -i ".reopen_reason = \"$reason\"" "$state_file"
-# Force contract/evidence/verdict stale by clearing their recorded hashes.
-# (so any next/judge/complete sees staleness)
+# Record the reopen reason, clear the recorded contract/evidence hashes (the
+# old basis is no longer current), and move state to reopen_required.
+# NOTE: this does NOT itself block next/judge/complete — an empty recorded hash
+# reads as "not stale", and those commands have no reopen_required status gate.
+# The human must edit goal/contract and re-review/approve/freeze to rebuild the
+# basis before execution should resume.
 yq e -i ".contract_hash = \"\"" "$state_file"
 yq e -i ".evidence_hash = \"\"" "$state_file"
 # Reset current_work_unit and bump state to reopen_required (transition allowed).

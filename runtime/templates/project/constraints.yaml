@@ -1,2 +1,3 @@
-# Long-term project constraints.
+# Long-term project constraints. Each entry should include id, category, level,
+# statement, source_refs, and applies_to when known.
 constraints: []

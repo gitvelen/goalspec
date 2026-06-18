@@ -4,12 +4,19 @@ goal_hash: null
 contract_hash: null
 evidence_hash: null
 memory_patch_hash: null
+intake_capture_hash: null
+intake_package_hash: null
+constraint_suggestions_applied_hash: null
 current_work_unit: null
 iteration: 0
 max_iterations: 6
 max_failures_per_work_unit: 2
 blocked_reason: null
 reopen_reason: null
+intake_session:
+  status: not_started
+  started_at: null
+  ended_at: null
 approvals: []
 git:
   base_revision: null

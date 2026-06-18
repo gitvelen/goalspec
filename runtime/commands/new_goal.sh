@@ -5,6 +5,30 @@ set -uo pipefail
 
 state_file="$GOALSPEC_ROOT/active/state.yaml"
 
+sources=()
+intent_parts=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --source|--from-doc|--from-file|--from-dir)
+      [ $# -ge 2 ] || { echo "goalspec new-goal: $1 requires a path" >&2; exit 2; }
+      sources+=("$2")
+      shift 2
+      ;;
+    --)
+      shift
+      while [ $# -gt 0 ]; do intent_parts+=("$1"); shift; done
+      ;;
+    --*)
+      echo "goalspec new-goal: unknown option $1" >&2
+      exit 2
+      ;;
+    *)
+      intent_parts+=("$1")
+      shift
+      ;;
+  esac
+done
+
 # Block if there's already an active, not-completed goal.
 if [ -f "$state_file" ]; then
   cur_status="$(yq e '.status' "$state_file")"
@@ -22,6 +46,10 @@ yq e -i ".active_goal_id = \"$goal_id\"" "$state_file"
 yq e -i ".status = \"draft\"" "$state_file"
 yq e -i ".git.base_revision = \"$(goalspec_git_head)\"" "$state_file"
 yq e -i ".git.current_revision = \"$(goalspec_git_head)\"" "$state_file"
+cp "$GOALSPEC_ROOT/runtime/templates/active/intake-sources.yaml" "$GOALSPEC_ROOT/active/intake-sources.yaml"
+cp "$GOALSPEC_ROOT/runtime/templates/active/intake-conversation.md" "$GOALSPEC_ROOT/active/intake-conversation.md"
+cp "$GOALSPEC_ROOT/runtime/templates/active/intake-capture.md" "$GOALSPEC_ROOT/active/intake-capture.md"
+cp "$GOALSPEC_ROOT/runtime/templates/active/constraint-suggestions.yaml" "$GOALSPEC_ROOT/active/constraint-suggestions.yaml"
 
 # Reset goal.md from template (only if it doesn't already have intent).
 if [ ! -f "$GOALSPEC_ROOT/active/goal.md" ] || ! grep -q "## 1. Intent" "$GOALSPEC_ROOT/active/goal.md" 2>/dev/null; then
@@ -29,8 +57,8 @@ if [ ! -f "$GOALSPEC_ROOT/active/goal.md" ] || ! grep -q "## 1. Intent" "$GOALSP
 fi
 
 # If a one-line human intent was passed, drop it into the Intent section body.
-if [ $# -ge 1 ] && [ -n "$1" ]; then
-  intent="$*"
+if [ "${#intent_parts[@]}" -ge 1 ]; then
+  intent="${intent_parts[*]}"
   gf="$GOALSPEC_ROOT/active/goal.md"
   awk -v intent="$intent" '
     BEGIN { in_intent=0; printed=0 }
@@ -41,6 +69,28 @@ if [ $# -ge 1 ] && [ -n "$1" ]; then
       if (in_intent && printed==1 && $0 ~ /^[[:space:]]*$/) { printed=2; next }
       print
     }
+  ' "$gf" > "$gf.tmp" && mv "$gf.tmp" "$gf"
+fi
+
+if [ "${#sources[@]}" -gt 0 ]; then
+  for src in "${sources[@]}"; do
+    goalspec_intake_add_source "$src"
+  done
+  gf="$GOALSPEC_ROOT/active/goal.md"
+  src_lines=""
+  for src in "${sources[@]}"; do
+    src_lines="${src_lines}  - ${src}"$'\n'
+  done
+  awk -v src_lines="$src_lines" '
+    BEGIN { inserted=0 }
+    /^## 7\. Sources and Decisions/ {
+      print
+      print "- sources:"
+      printf "%s", src_lines
+      inserted=1
+      next
+    }
+    { print }
   ' "$gf" > "$gf.tmp" && mv "$gf.tmp" "$gf"
 fi
 

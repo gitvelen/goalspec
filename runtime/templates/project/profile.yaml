@@ -1,5 +1,19 @@
 # Project profile — long-term project facts.
-name: ""
-language: ""
-default_commands: []
+project:
+  name: ""
+  type: ""
+stack:
+  languages: []
+  frameworks: []
+  package_managers: []
+  runtimes: []
+commands:
+  test: []
+  build: []
+  lint: []
+  typecheck: []
+environment:
+  required_services: []
+  required_env_vars: []
+  local_setup_notes: []
 tools: []

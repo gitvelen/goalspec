@@ -17,17 +17,42 @@ if [ "$intake_pass" -ne 1 ]; then
   echo "compile blocked: intake review has not passed. Run 'goalspec review prompt intake' then apply a passing result." >&2
   exit 1
 fi
-if goalspec_approval_stale goal || ! yq e '.approvals[] | select(.kind == "goal")' "$state_file" >/dev/null 2>&1; then
-  if ! yq e '[.approvals[] | select(.kind == "goal")] | length' "$state_file" 2>/dev/null | grep -q '^[1-9]'; then
-    echo "compile blocked: goal not approved. Run 'goalspec approve goal'." >&2
-    exit 1
-  fi
+goal_approvals="$(yq e '[.approvals[] | select(.kind == "goal")] | length' "$state_file" 2>/dev/null || echo 0)"
+if [ "${goal_approvals:-0}" -lt 1 ]; then
+  echo "compile blocked: goal not approved. Run 'goalspec approve goal'." >&2
+  exit 1
+fi
+if goalspec_approval_stale goal; then
+  echo "compile blocked: goal approval is stale vs current goal.md. Re-approve goal." >&2
+  exit 1
 fi
 
 # If intake review is stale vs current goal.md, block.
 if goalspec_review_stale intake; then
   echo "compile blocked: intake review is stale vs current goal.md. Re-review." >&2
   exit 1
+fi
+
+if goalspec_intake_has_sources; then
+  pkg_approvals="$(yq e '[.approvals[] | select(.kind == "intake-package")] | length' "$state_file" 2>/dev/null || echo 0)"
+  if [ "${pkg_approvals:-0}" -lt 1 ]; then
+    echo "compile blocked: intake package not approved. Run 'goalspec approve intake-package' after reviewing intake-capture.md and constraint-suggestions.yaml." >&2
+    exit 1
+  fi
+  if goalspec_approval_stale intake-package; then
+    echo "compile blocked: intake-package approval is stale. Re-approve intake package." >&2
+    exit 1
+  fi
+  cur_suggestions_hash="$(goalspec_constraint_suggestions_hash)"
+  applied_suggestions_hash="$(yq e '.constraint_suggestions_applied_hash // ""' "$state_file" 2>/dev/null || echo "")"
+  if [ -z "$applied_suggestions_hash" ] || [ "$applied_suggestions_hash" = "null" ]; then
+    echo "compile blocked: constraint suggestions not applied. Run 'goalspec intake apply-suggestions'." >&2
+    exit 1
+  fi
+  if [ "$cur_suggestions_hash" != "$applied_suggestions_hash" ]; then
+    echo "compile blocked: applied constraint suggestions are stale. Re-approve package and run 'goalspec intake apply-suggestions'." >&2
+    exit 1
+  fi
 fi
 
 cf="$GOALSPEC_ROOT/active/contract.yaml"
