@@ -57,7 +57,7 @@ _goalspec_yq_system_v4() {
   # mikefarah v3 are NOT compatible with this framework's expressions.
   command yq --version 2>/dev/null | grep -qi 'version v4' || return 1
   # Final sanity probe: an eval expression must actually work.
-  command yq e '1' >/dev/null 2>&1 || return 1
+  command yq e -n '1' >/dev/null 2>&1 || return 1
   return 0
 }
 

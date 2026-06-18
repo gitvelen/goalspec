@@ -147,8 +147,8 @@ goalspec install /path/to/project
   project/
   history/
   artifacts/
-AGENTS.md      # 如果原项目没有才创建
-CLAUDE.md      # 如果原项目没有才创建
+AGENTS.md      # 安装/更新 Goalspec 管理块，保留原有自定义内容
+CLAUDE.md      # 安装/更新 Goalspec 管理块，保留原有自定义内容
 ```
 
 验证：
@@ -180,6 +180,7 @@ goalspec init: /path/to/project/.goalspec already exists. Update framework code 
 - 替换：`.goalspec/runtime/`、`.goalspec/ai/`、`.goalspec/skills/`、`.goalspec/goalspec`
 - 保留：`.goalspec/active/**`、`.goalspec/project/**`、`.goalspec/history/**`、`.goalspec/artifacts/**`
 - 自动补齐新版 active 文件和 state 字段
+- 更新 `AGENTS.md` / `CLAUDE.md` 中 `<!-- GOALSPEC:BEGIN -->` 到 `<!-- GOALSPEC:END -->` 的 Goalspec 管理块；旧版 Goalspec 生成文件会替换为新版，自定义内容会保留
 
 更新后验证：
 

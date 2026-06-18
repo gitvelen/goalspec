@@ -20,6 +20,69 @@ if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
   exit 0
 fi
 
+GOALSPEC_GUIDE_BEGIN='<!-- GOALSPEC:BEGIN -->'
+GOALSPEC_GUIDE_END='<!-- GOALSPEC:END -->'
+
+goalspec_legacy_ai_guide() {
+  local file="$1"
+  /bin/grep -q '^# Goalspec' "$file" 2>/dev/null || return 1
+  /bin/grep -q '本项目使用 Goalspec 框架' "$file" 2>/dev/null || return 1
+  /bin/grep -q '.goalspec/goalspec status' "$file" 2>/dev/null || return 1
+}
+
+goalspec_install_ai_guide() {
+  local dest_file="$1" template_file="$2"
+  local begin_count end_count tmp
+
+  if [ ! -f "$dest_file" ]; then
+    cp "$template_file" "$dest_file"
+    return 0
+  fi
+
+  begin_count="$(/bin/grep -cF "$GOALSPEC_GUIDE_BEGIN" "$dest_file" 2>/dev/null || true)"
+  end_count="$(/bin/grep -cF "$GOALSPEC_GUIDE_END" "$dest_file" 2>/dev/null || true)"
+
+  if [ "$begin_count" = "1" ] && [ "$end_count" = "1" ]; then
+    tmp="$(mktemp "${dest_file}.tmp.XXXXXX")" || return 1
+    awk -v begin="$GOALSPEC_GUIDE_BEGIN" -v end="$GOALSPEC_GUIDE_END" -v repl="$template_file" '
+      BEGIN {
+        while ((getline line < repl) > 0) {
+          replacement = replacement line ORS
+        }
+        close(repl)
+        in_block = 0
+      }
+      $0 == begin {
+        printf "%s", replacement
+        in_block = 1
+        next
+      }
+      $0 == end {
+        in_block = 0
+        next
+      }
+      !in_block { print }
+    ' "$dest_file" > "$tmp" && mv "$tmp" "$dest_file"
+    [ ! -f "$tmp" ] || rm -f "$tmp"
+    return 0
+  fi
+
+  if [ "$begin_count" != "0" ] || [ "$end_count" != "0" ]; then
+    echo "goalspec init: warning: $dest_file has a malformed managed Goalspec block; leaving unchanged." >&2
+    return 0
+  fi
+
+  if goalspec_legacy_ai_guide "$dest_file"; then
+    cp "$template_file" "$dest_file"
+    return 0
+  fi
+
+  {
+    printf '\n'
+    cat "$template_file"
+  } >> "$dest_file"
+}
+
 goalspec_update_existing() {
   local dest_root="$1" dest_goalspec="$2"
   local ans
@@ -61,12 +124,8 @@ goalspec_update_existing() {
     cp "$SRC_ROOT/runtime/templates/active/state.yaml" "$dest_goalspec/active/state.yaml"
   fi
 
-  if [ ! -f "$dest_root/AGENTS.md" ]; then
-    cp "$SRC_ROOT/runtime/templates/AGENTS.md" "$dest_root/AGENTS.md"
-  fi
-  if [ ! -f "$dest_root/CLAUDE.md" ]; then
-    cp "$SRC_ROOT/runtime/templates/CLAUDE.md" "$dest_root/CLAUDE.md"
-  fi
+  goalspec_install_ai_guide "$dest_root/AGENTS.md" "$SRC_ROOT/runtime/templates/AGENTS.md"
+  goalspec_install_ai_guide "$dest_root/CLAUDE.md" "$SRC_ROOT/runtime/templates/CLAUDE.md"
 
   echo "goalspec: updated $dest_goalspec"
   echo "  project state preserved: active/, project/, history/, artifacts/"
@@ -111,13 +170,9 @@ chmod +x "$dest_goalspec/goalspec"
 [ -f "$SRC_ROOT/runtime/VERSION" ] && cp "$SRC_ROOT/runtime/VERSION" "$dest_goalspec/runtime/VERSION"
 
 # Ensure runtime/commands exist (they were copied with runtime/).
-# Ensure AGENTS.md / CLAUDE.md templates exist at project root (only if absent).
-if [ ! -f "$dest_root/AGENTS.md" ]; then
-  cp "$SRC_ROOT/runtime/templates/AGENTS.md" "$dest_root/AGENTS.md"
-fi
-if [ ! -f "$dest_root/CLAUDE.md" ]; then
-  cp "$SRC_ROOT/runtime/templates/CLAUDE.md" "$dest_root/CLAUDE.md"
-fi
+# Install or update the managed Goalspec guide in project root AI instruction files.
+goalspec_install_ai_guide "$dest_root/AGENTS.md" "$SRC_ROOT/runtime/templates/AGENTS.md"
+goalspec_install_ai_guide "$dest_root/CLAUDE.md" "$SRC_ROOT/runtime/templates/CLAUDE.md"
 
 # Initialize empty history / artifacts.
 mkdir -p "$dest_goalspec/history" "$dest_goalspec/artifacts"

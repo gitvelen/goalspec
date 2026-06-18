@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
-# GOALC #1: empty git repo + goalspec init -> full .goalspec/, short AGENTS/CLAUDE,
+# GOALC #1: empty git repo + goalspec init -> full .goalspec/, managed AGENTS/CLAUDE,
 #            and `goalspec status` gives a clear NEXT_ACTION.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
+
+assert_managed_ai_guide() {
+  local file="$1"
+  /bin/grep -q '<!-- GOALSPEC:BEGIN -->' "$file" || bad "$file missing managed begin marker"
+  /bin/grep -q '<!-- GOALSPEC:END -->' "$file" || bad "$file missing managed end marker"
+  /bin/grep -q '.goalspec/ai/core.md' "$file" || bad "$file missing core role instruction"
+  /bin/grep -q 'constraint-suggestions.yaml' "$file" || bad "$file missing constraint suggestions flow"
+  /bin/grep -q 'approve intake-package' "$file" || bad "$file missing intake package approval"
+  /bin/grep -q 'intake apply-suggestions' "$file" || bad "$file missing apply suggestions command"
+  /bin/grep -q 'goalspec complete' "$file" || bad "$file missing completion command"
+}
 
 fresh_initialized_repo goalc-01
 ok "init in empty git repo"
@@ -14,6 +25,8 @@ ok "init in empty git repo"
 [ -f "$REPO/AGENTS.md" ]          || bad "missing AGENTS.md"
 [ -f "$REPO/CLAUDE.md" ]          || bad "missing CLAUDE.md"
 [ -x "$REPO_GS" ]                 || bad "goalspec not executable"
+assert_managed_ai_guide "$REPO/AGENTS.md"
+assert_managed_ai_guide "$REPO/CLAUDE.md"
 
 # status must give a NEXT_ACTION line that points at new-goal (no active goal yet).
 status_out="$("$REPO_GS" status)"
@@ -27,6 +40,16 @@ echo "custom-memory: keep" > "$REPO/.goalspec/project/memory.yaml"
 echo "old runtime marker" > "$REPO/.goalspec/runtime/OLD_MARKER"
 echo "old ai marker" > "$REPO/.goalspec/ai/OLD_MARKER"
 rm -rf "$REPO/.goalspec/skills"
+cat > "$REPO/AGENTS.md" <<'MD'
+# Goalspec
+
+本项目使用 Goalspec 框架管理目标驱动的开发。
+
+开始任务前运行或读取 `.goalspec/goalspec status`，按 `NEXT_ACTION` 加载对应角色指令。
+会话录入结束后，先写 `active/intake-capture.md` 并取得 `goalspec approve intake-capture`，再写 `active/goal.md`。
+不要自评完成。
+MD
+cp "$REPO/AGENTS.md" "$REPO/CLAUDE.md"
 
 if ( cd "$REPO" && bash "$FRAMEWORK/goalspec" init </dev/null >/dev/null 2>&1 ); then
   bad "init update succeeded without confirmation"
@@ -52,6 +75,53 @@ fi
   || bad "init update did not add missing intake-capture template"
 [ -f "$REPO/.goalspec/skills/goalspec/SKILL.md" ] \
   || bad "init update did not restore bundled goalspec skill"
+assert_managed_ai_guide "$REPO/AGENTS.md"
+assert_managed_ai_guide "$REPO/CLAUDE.md"
+if /bin/grep -q 'approve intake-capture' "$REPO/AGENTS.md" || /bin/grep -q 'approve intake-capture' "$REPO/CLAUDE.md"; then
+  bad "init update preserved stale approve intake-capture guidance"
+else
+  ok "init update replaces legacy Goalspec AI guide"
+fi
+
+fresh_repo goalc-01-custom-guide
+cat > "$REPO/AGENTS.md" <<'MD'
+# Project Agents
+
+Keep existing project-specific guidance.
+MD
+cp "$REPO/AGENTS.md" "$REPO/CLAUDE.md"
+( cd "$REPO" && bash "$FRAMEWORK/goalspec" init >/dev/null ) || bad "custom guide init failed"
+/bin/grep -q 'Keep existing project-specific guidance.' "$REPO/AGENTS.md" \
+  || bad "custom AGENTS.md content was not preserved"
+/bin/grep -q 'Keep existing project-specific guidance.' "$REPO/CLAUDE.md" \
+  || bad "custom CLAUDE.md content was not preserved"
+assert_managed_ai_guide "$REPO/AGENTS.md"
+assert_managed_ai_guide "$REPO/CLAUDE.md"
+before_count="$(/bin/grep -c '<!-- GOALSPEC:BEGIN -->' "$REPO/AGENTS.md")"
+printf 'y\n' | ( cd "$REPO" && bash "$FRAMEWORK/goalspec" init >/dev/null ) || bad "custom guide update failed"
+after_count="$(/bin/grep -c '<!-- GOALSPEC:BEGIN -->' "$REPO/AGENTS.md")"
+[ "$before_count" = "1" ] && [ "$after_count" = "1" ] \
+  && ok "managed Goalspec guide update is idempotent" \
+  || bad "managed Goalspec guide duplicated on update"
+
+fresh_repo goalc-01-malformed-guide
+cat > "$REPO/AGENTS.md" <<'MD'
+# Project Agents
+
+<!-- GOALSPEC:BEGIN -->
+broken managed block without an end marker
+MD
+cp "$REPO/AGENTS.md" "$REPO/CLAUDE.md"
+( cd "$REPO" && bash "$FRAMEWORK/goalspec" init >/dev/null ) || bad "malformed guide init failed"
+before_hash="$(sha256sum "$REPO/AGENTS.md" | awk '{print $1}')"
+err="$(printf 'y\n' | ( cd "$REPO" && bash "$FRAMEWORK/goalspec" init >/dev/null ) 2>&1 || true)"
+after_hash="$(sha256sum "$REPO/AGENTS.md" | awk '{print $1}')"
+[ "$before_hash" = "$after_hash" ] \
+  && ok "malformed managed Goalspec guide is left unchanged" \
+  || bad "malformed managed Goalspec guide was modified"
+echo "$err" | /bin/grep -q 'managed Goalspec block' \
+  && ok "malformed managed Goalspec guide emits warning" \
+  || bad "malformed managed Goalspec guide did not warn"
 
 skill_dest="$TESTS_TMP_ROOT/installed-skill"
 "$REPO_GS" install-skill "$skill_dest" >/dev/null
