@@ -5,144 +5,135 @@ set -uo pipefail
 mode="text"
 if [ "${1:-}" = "--json" ]; then mode="json"; fi
 
-STATE="(no active goal)"
-NEXT_ACTION="Run: goalspec intake begin [text] for conversation capture, or goalspec new-goal [--source <path>] [text]"
-ROLE="intake"
-READ=".goalspec/ai/core.md, .goalspec/ai/intake.md"
-MAY_EDIT=".goalspec/active/goal.md, .goalspec/active/questions.yaml"
-MUST_NOT_EDIT=".goalspec/active/contract.yaml, .goalspec/active/verdict.yaml, .goalspec/project/**"
-BLOCKERS=""
-CWU="(none)"
-CC="All required criteria pass; final criteria pass; no blockers; scope-check pass; memory-patch approved."
-
 state_file="$GOALSPEC_ROOT/active/state.yaml"
+cf="$GOALSPEC_ROOT/active/contract.yaml"
+vf="$GOALSPEC_ROOT/active/verdict.yaml"
+
+STATE="no_goal"
+GOAL="(none)"
+FROZEN="false"
+PROMPT_READY="false"
+RUN_ALLOWED="false"
+NEEDS_HUMAN_CONFIRMATION="false"
+BLOCKERS=""
+UNMET_CRITERIA=""
+NEXT_USER_ACTION="Run /goalspec start <intent> to open a formal intake window."
+
 if [ -f "$state_file" ]; then
-  STATE="$(yq e '.status' "$state_file")"
-  CWU="$(yq e '.current_work_unit // "(none)"' "$state_file")"
-  # If active_goal_id is null, there is no active goal yet — route to new-goal.
+  raw_state="$(yq e '.status // "draft"' "$state_file")"
   gid="$(yq e '.active_goal_id // ""' "$state_file")"
-  if [ -z "$gid" ] || [ "$gid" = "null" ]; then
-    STATE="(no active goal)"
+  if [ -n "$gid" ] && [ "$gid" != "null" ]; then
+    STATE="$raw_state"
   fi
 fi
 
-# Derive NEXT_ACTION / ROLE / boundaries from state.
+if [ -f "$GOALSPEC_ROOT/active/goal.md" ]; then
+  GOAL="$(awk '
+    /^## .*Intent/ { in_intent=1; next }
+    /^## / && in_intent { exit }
+    in_intent && NF { print; exit }
+  ' "$GOALSPEC_ROOT/active/goal.md")"
+  [ -n "$GOAL" ] || GOAL="(draft goal present)"
+fi
+
+if [ -f "$cf" ] && [ "$(yq e '.status // ""' "$cf")" = "frozen" ]; then
+  if [ "$(yq e '.contract_hash // ""' "$state_file")" = "$(goalspec_contract_hash)" ] \
+    && [ "$(yq e '.goal_hash // ""' "$state_file")" = "$(goalspec_goal_hash)" ] \
+    && [ "$(yq e '.criteria_hash // ""' "$state_file")" = "$(goalspec_criteria_hash)" ] \
+    && [ "$(yq e '.constraints_hash // ""' "$state_file")" = "$(goalspec_constraints_hash)" ]; then
+    FROZEN="true"
+  else
+    BLOCKERS="${BLOCKERS}frozen_artifact_stale "
+  fi
+fi
+
+if [ -f "$GOALSPEC_ROOT/active/goal-driven-prompt.md" ] \
+  && [ "$(yq e '.prompt_hash // ""' "$state_file" 2>/dev/null || echo "")" = "$(goalspec_prompt_hash)" ] \
+  && [ "$FROZEN" = "true" ]; then
+  PROMPT_READY="true"
+fi
+
+nblock="$(yq e '[.questions[] | select(.blocking == true and .status != "resolved")] | length' "$GOALSPEC_ROOT/active/questions.yaml" 2>/dev/null || echo 0)"
+if [ "${nblock:-0}" -gt 0 ]; then
+  BLOCKERS="${BLOCKERS}blocking_questions "
+fi
+
+if [ "$PROMPT_READY" = "true" ] && [ "${nblock:-0}" -eq 0 ]; then
+  RUN_ALLOWED="true"
+fi
+
+if [ -f "$cf" ]; then
+  required_ids="$(yq e '.criteria[] | select(.required_for_completion != false or .final == true or .priority == "P0") | .id' "$cf" 2>/dev/null || true)"
+  while IFS= read -r cid; do
+    [ -z "$cid" ] && continue
+    v="$(yq e "[.verdicts[] | select(.criteria_ref == \"$cid\")] | .[-1].verdict // \"\"" "$vf" 2>/dev/null || true)"
+    [ "$v" = "pass" ] || UNMET_CRITERIA="${UNMET_CRITERIA}${cid} "
+  done <<<"$required_ids"
+fi
+[ -n "$UNMET_CRITERIA" ] || UNMET_CRITERIA="(none)"
+
 case "$STATE" in
+  no_goal)
+    NEXT_USER_ACTION="Run /goalspec start <intent> to open a formal intake window."
+    ;;
   draft)
     intake_status="$(yq e '.intake_session.status // "not_started"' "$state_file" 2>/dev/null || echo "not_started")"
     if [ "$intake_status" = "collecting" ]; then
-      NEXT_ACTION="Record begin/end conversation in active/intake-conversation.md; add sources with goalspec intake add-source <path>; then: goalspec intake end"
-      ROLE="intake"
-      READ=".goalspec/ai/core.md, .goalspec/ai/intake.md, .goalspec/active/intake-conversation.md, .goalspec/active/intake-sources.yaml"
-      MAY_EDIT=".goalspec/active/intake-conversation.md, .goalspec/active/intake-sources.yaml, .goalspec/active/questions.yaml, .goalspec/artifacts/intake/**"
-      MUST_NOT_EDIT=".goalspec/active/goal.md, .goalspec/active/contract.yaml, .goalspec/active/verdict.yaml, .goalspec/project/**"
-    elif goalspec_intake_has_sources && { ! yq e '[.approvals[] | select(.kind == "intake-package")] | length' "$state_file" 2>/dev/null | grep -q '^[1-9]'; }; then
-      NEXT_ACTION="Write active/intake-capture.md and active/constraint-suggestions.yaml from conversation/source material, then ask human confirmation and run: goalspec approve intake-package -> goalspec intake apply-suggestions"
-      ROLE="intake"
-      READ=".goalspec/ai/core.md, .goalspec/ai/intake.md, .goalspec/active/intake-conversation.md, .goalspec/active/intake-sources.yaml"
-      MAY_EDIT=".goalspec/active/intake-capture.md, .goalspec/active/constraint-suggestions.yaml, .goalspec/active/questions.yaml"
-      MUST_NOT_EDIT=".goalspec/active/goal.md, .goalspec/active/contract.yaml, .goalspec/active/verdict.yaml, .goalspec/project/**"
-    elif goalspec_intake_has_sources && goalspec_approval_stale intake-package; then
-      NEXT_ACTION="Re-approve changed active/intake-capture.md / active/constraint-suggestions.yaml: goalspec approve intake-package, then goalspec intake apply-suggestions"
-      ROLE="human"
-      READ=".goalspec/active/intake-capture.md, .goalspec/active/constraint-suggestions.yaml, .goalspec/active/intake-conversation.md"
-      MAY_EDIT="(nothing)"
-      MUST_NOT_EDIT=".goalspec/active/goal.md, .goalspec/active/contract.yaml, business code"
+      NEXT_USER_ACTION="Continue capturing .goalspec/active/intake-conversation.md, add source with /goalspec source <path>, or run /goalspec end."
     else
-      NEXT_ACTION="Write active/goal.md from approved intake package and/or source snapshots, including goal constraints from active/constraint-suggestions.yaml, then: goalspec review prompt intake -> goalspec review apply"
-      ROLE="intake"
-      READ=".goalspec/ai/core.md, .goalspec/ai/intake.md, .goalspec/active/goal.md, .goalspec/active/intake-capture.md, .goalspec/active/constraint-suggestions.yaml, .goalspec/active/intake-sources.yaml"
-      MAY_EDIT=".goalspec/active/goal.md, .goalspec/active/questions.yaml"
-      MUST_NOT_EDIT=".goalspec/active/contract.yaml, .goalspec/active/verdict.yaml, .goalspec/project/**"
+      NEEDS_HUMAN_CONFIRMATION="true"
+      NEXT_USER_ACTION="Draft Goal, Criteria, Constraints, out-of-scope, and blocking questions from .goalspec/active/intake-capture.md and .goalspec/active/constraint-suggestions.yaml; then ask for confirmation."
     fi
     ;;
-  intake_reviewed)
-    NEXT_ACTION="Compile draft contract: goalspec compile"
-    ROLE="compiler"
-    READ=".goalspec/ai/core.md, .goalspec/ai/compiler.md, .goalspec/active/goal.md, .goalspec/project/*.yaml"
-    MAY_EDIT=".goalspec/active/contract.yaml (status=draft), .goalspec/active/questions.yaml"
-    MUST_NOT_EDIT=".goalspec/active/goal.md, .goalspec/active/verdict.yaml, business code"
+  intake_reviewed|contract_draft|contract_reviewed)
+    NEEDS_HUMAN_CONFIRMATION="true"
+    NEXT_USER_ACTION="Review and explicitly confirm the drafted Goal, Criteria, and Constraints before freezing."
     ;;
-  contract_draft)
-    NEXT_ACTION="Review contract: goalspec review prompt contract, then goalspec review apply"
-    ROLE="compiler"
-    READ=".goalspec/ai/core.md, .goalspec/ai/compiler.md, .goalspec/active/contract.yaml"
-    MAY_EDIT=".goalspec/active/contract.yaml (status=draft), .goalspec/active/questions.yaml"
-    MUST_NOT_EDIT=".goalspec/active/goal.md, .goalspec/active/verdict.yaml, business code"
-    ;;
-  contract_reviewed)
-    NEXT_ACTION="Approve and freeze contract: goalspec approve contract && goalspec freeze"
-    ROLE="human"
-    READ=".goalspec/active/contract.yaml, .goalspec/active/goal.md"
-    MAY_EDIT="(nothing)"
-    MUST_NOT_EDIT=".goalspec/active/contract.yaml, .goalspec/active/goal.md, business code"
-    ;;
-  compiled)
-    NEXT_ACTION="Pick a work unit: goalspec next"
-    ROLE="executor"
-    READ=".goalspec/ai/core.md, .goalspec/ai/executor.md, .goalspec/active/contract.yaml"
-    MAY_EDIT="business code within WU allowed_paths, .goalspec/active/trace.yaml, .goalspec/active/evidence.yaml, .goalspec/artifacts/**"
-    MUST_NOT_EDIT=".goalspec/active/contract.yaml, .goalspec/active/verdict.yaml, .goalspec/active/goal.md, .goalspec/project/**, .goalspec/history/**"
+  prompt_ready)
+    NEXT_USER_ACTION="Run /goalspec run to begin implementation from the frozen Goal-Driven Prompt."
     ;;
   running)
-    NEXT_ACTION="Produce evidence, then: goalspec judge prompt <wu> -> goalspec judge apply <file>"
-    ROLE="guardian"
-    READ=".goalspec/ai/core.md, .goalspec/ai/guardian.md, .goalspec/active/contract.yaml, .goalspec/active/evidence.yaml, .goalspec/active/trace.yaml"
-    MAY_EDIT=".goalspec/active/verdict.yaml, .goalspec/active/reviews.yaml, .goalspec/active/regressions.yaml, .goalspec/active/memory-patch.yaml"
-    MUST_NOT_EDIT="business code, .goalspec/active/contract.yaml, .goalspec/active/goal.md, .goalspec/project/**"
+    NEXT_USER_ACTION="Execute the Goal-Driven Prompt; continue until required Criteria pass or a human blocker requires reopen."
     ;;
   completed)
-    NEXT_ACTION="Goal completed. To start another: goalspec new-goal"
-    ROLE="(none)"
-    READ=".goalspec/project/versions.yaml"
-    MAY_EDIT="(nothing)"
-    MUST_NOT_EDIT=".goalspec/history/**"
+    NEXT_USER_ACTION="Goal completed. Run /goalspec start <intent> for another goal."
     ;;
-  blocked)
-    NEXT_ACTION="Resolve blocker or reopen: goalspec reopen"
-    ROLE="intake"
-    READ=".goalspec/active/state.yaml, .goalspec/active/questions.yaml"
-    MAY_EDIT=".goalspec/active/goal.md, .goalspec/active/questions.yaml"
-    MUST_NOT_EDIT=".goalspec/active/contract.yaml, .goalspec/active/verdict.yaml"
-    ;;
-  reopen_required)
-    NEXT_ACTION="Reopen: goalspec reopen"
-    ROLE="intake"
-    READ=".goalspec/active/state.yaml"
-    MAY_EDIT=".goalspec/active/goal.md"
-    MUST_NOT_EDIT=".goalspec/active/contract.yaml (frozen), .goalspec/active/verdict.yaml"
+  blocked|reopen_required)
+    NEEDS_HUMAN_CONFIRMATION="true"
+    NEXT_USER_ACTION="Resolve the blocker or run /goalspec reopen <reason>."
     ;;
 esac
 
-# Add stale warnings to blockers.
 sb="$(goalspec_stale_blockers)"
 if [ -n "$sb" ]; then
   BLOCKERS="${BLOCKERS}stale: ${sb}"
+  RUN_ALLOWED="false"
 fi
+[ -n "$BLOCKERS" ] || BLOCKERS="(none)"
 
 if [ "$mode" = "json" ]; then
   yq -o=json -I=0 '.' <<EOF
 state: "$STATE"
-next_action: "$NEXT_ACTION"
-role: "$ROLE"
-read: "$READ"
-may_edit: "$MAY_EDIT"
-must_not_edit: "$MUST_NOT_EDIT"
-blockers: "${BLOCKERS}"
-current_work_unit: "${CWU}"
-completion_condition: "${CC}"
+goal: "$GOAL"
+frozen: $FROZEN
+prompt_ready: $PROMPT_READY
+run_allowed: $RUN_ALLOWED
+needs_human_confirmation: $NEEDS_HUMAN_CONFIRMATION
+blockers: "$BLOCKERS"
+unmet_criteria: "$UNMET_CRITERIA"
+next_user_action: "$NEXT_USER_ACTION"
 EOF
   exit 0
 fi
 
 cat <<EOF
 STATE: $STATE
-NEXT_ACTION: $NEXT_ACTION
-ROLE: $ROLE
-READ: $READ
-MAY_EDIT: $MAY_EDIT
-MUST_NOT_EDIT: $MUST_NOT_EDIT
-BLOCKERS: ${BLOCKERS}
-CURRENT_WORK_UNIT: $CWU
-COMPLETION_CONDITION: $CC
+GOAL: $GOAL
+FROZEN: $FROZEN
+PROMPT_READY: $PROMPT_READY
+RUN_ALLOWED: $RUN_ALLOWED
+NEEDS_HUMAN_CONFIRMATION: $NEEDS_HUMAN_CONFIRMATION
+BLOCKERS: $BLOCKERS
+UNMET_CRITERIA: $UNMET_CRITERIA
+NEXT_USER_ACTION: $NEXT_USER_ACTION
 EOF

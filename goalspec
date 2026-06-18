@@ -21,10 +21,18 @@ Commands:
                                 project directory (no cd needed)
   install-skill [dest-dir]      Install bundled Goalspec AI skill
   install-ai <tool>             Install AI tool adapter (codex|claude|lingma)
-  status [--json]               Show current state and next action
-  intake begin [text]           Start explicit conversation intake capture
-  intake add-source <path>      Add a file or directory source to intake
-  intake end                    Close conversation intake capture
+  status [--json]               Show current goal-driven state
+  start <intent>                Start the formal intake window
+  source <path>                 Add a file or directory source to intake
+  end                           Close the formal intake window
+  run                           Begin implementation from the frozen
+                                Goal-Driven Prompt
+  reopen [reason]               Reopen when frozen artifacts are wrong
+
+Internal commands:
+  intake begin [text]           Internal alias for start
+  intake add-source <path>      Internal alias for source
+  intake end                    Internal alias for end
   intake apply-suggestions      Apply approved intake constraint suggestions
   new-goal [--source <path>] [text]
                                 Create a new active goal and optional source
@@ -35,9 +43,8 @@ Commands:
   approve <kind> [id]           Record human approval (kind: goal|contract|
                                 memory-patch|intake-package|intake-capture|
                                 high-risk|regression-waiver)
-  freeze                        Freeze the reviewed contract
-  next                          Select the next work unit
-  evidence template [wu_id]     Print an evidence template for a work unit
+  freeze                        Freeze reviewed artifacts and generate prompt
+  evidence template [scope_id]  Print an evidence template
   evidence check                Validate evidence.yaml
   judge prompt [wu_id]          Print a guardian judge prompt
   judge apply <verdict.yaml>    Apply a guardian verdict file
@@ -47,7 +54,6 @@ Commands:
                                 fail-fast). target: goal|contract|evidence|
                                 verdict|state|intake|all (default all)
   complete                      Run the completion gate
-  reopen [reason]               Make old contract/evidence/verdict stale
   yq which|install              Manage the bundled yq dependency
                                 (which: show resolved binary; install: fetch a
                                 matching mikefarah yq v4 into runtime/bin/)
@@ -116,6 +122,10 @@ export GOALSPEC_ROOT PROJECT_ROOT
 
 case "$cmd" in
   status)            exec bash "$GOALSPEC_BIN_DIR/status.sh" "$@" ;;
+  start)             exec bash "$GOALSPEC_BIN_DIR/intake.sh" begin "$@" ;;
+  source)            exec bash "$GOALSPEC_BIN_DIR/intake.sh" add-source "$@" ;;
+  end)               exec bash "$GOALSPEC_BIN_DIR/intake.sh" end "$@" ;;
+  run)               exec bash "$GOALSPEC_BIN_DIR/run.sh" "$@" ;;
   intake)            exec bash "$GOALSPEC_BIN_DIR/intake.sh" "$@" ;;
   new-goal)          exec bash "$GOALSPEC_BIN_DIR/new_goal.sh" "$@" ;;
   review)            exec bash "$GOALSPEC_BIN_DIR/review.sh" "$@" ;;

@@ -3,7 +3,7 @@
 # Sourced by tests/run_all.sh and individual negative_* tests.
 set -uo pipefail
 
-FRAMEWORK="${FRAMEWORK:-/home/admin/.goalspec}"
+FRAMEWORK="${FRAMEWORK:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 # Counter.
 TESTS_PASS=0

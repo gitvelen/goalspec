@@ -61,6 +61,14 @@ goalspec_schema_contract_freeze() {
       echo "criteria ${id}: missing statement" >&2
       errs=$((errs+1))
     fi
+    if printf '%s' "$stmt" | grep -Eiq '(合理|良好|优化|正确|完整|充分支持|reasonable|good|optimized|correct|complete|proper|properly)'; then
+      echo "criteria ${id}: vague statement must be rewritten before freeze" >&2
+      errs=$((errs+1))
+    fi
+    if printf '%s' "$stmt" | grep -Eiq '(^|[[:space:]])(implement|refactor|use|create file|edit file|修改|实现|重构|使用)([[:space:]]|$)'; then
+      echo "criteria ${id}: statement appears to encode implementation steps" >&2
+      errs=$((errs+1))
+    fi
     idx=$((idx+1))
   done
   # final criteria present

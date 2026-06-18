@@ -28,10 +28,10 @@ ok "init in empty git repo"
 assert_managed_ai_guide "$REPO/AGENTS.md"
 assert_managed_ai_guide "$REPO/CLAUDE.md"
 
-# status must give a NEXT_ACTION line that points at new-goal (no active goal yet).
+# status must give a NEXT_USER_ACTION line that points at start (no active goal yet).
 status_out="$("$REPO_GS" status)"
-echo "$status_out" | /bin/grep -q '^NEXT_ACTION:' || bad "status missing NEXT_ACTION"
-echo "$status_out" | /bin/grep -qi 'new-goal'     || bad "NEXT_ACTION does not mention new-goal"
+echo "$status_out" | /bin/grep -q '^NEXT_USER_ACTION:' || bad "status missing NEXT_USER_ACTION"
+echo "$status_out" | /bin/grep -qi '/goalspec start'   || bad "NEXT_USER_ACTION does not mention /goalspec start"
 
 # Re-running init on an installed project is an explicit update flow:
 # no confirmation -> refused; "y" -> update runtime/ai/dispatcher but preserve state.

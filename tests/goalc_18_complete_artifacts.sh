@@ -28,7 +28,7 @@ evidence:
   - id: EV-001
     contract_hash: "$CHASH"
     work_unit_ref: WU-001
-    criteria_refs: [CRIT-001]
+    criteria_refs: [CRIT-001, CRIT-FINAL-001]
     evidence_requirement_refs: [EVIDREQ-001]
     command: t
     exit_code: 0

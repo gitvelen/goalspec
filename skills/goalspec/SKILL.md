@@ -15,7 +15,7 @@ When a project contains `.goalspec/`, run:
 .goalspec/goalspec status
 ```
 
-Follow `NEXT_ACTION`, `ROLE`, `READ`, `MAY_EDIT`, `MUST_NOT_EDIT`, `BLOCKERS`, and `CURRENT_WORK_UNIT`.
+Follow `STATE`, `GOAL`, `FROZEN`, `PROMPT_READY`, `RUN_ALLOWED`, `NEEDS_HUMAN_CONFIRMATION`, `BLOCKERS`, `UNMET_CRITERIA`, and `NEXT_USER_ACTION`.
 
 Do not start a goal from casual discussion. Start intake only after explicit human authorization.
 
@@ -24,11 +24,13 @@ Do not start a goal from casual discussion. Start intake only after explicit hum
 Treat user-facing commands as shorthand:
 
 - `/goalspec status` -> run `.goalspec/goalspec status`.
-- `/goalspec begin <intent>` -> run `.goalspec/goalspec intake begin "<intent>"`.
-- `/goalspec source <path>` -> run `.goalspec/goalspec intake add-source <path>`.
-- `/goalspec end` -> run `.goalspec/goalspec intake end`, then write `intake-capture.md` and `constraint-suggestions.yaml`.
+- `/goalspec start <intent>` -> run `.goalspec/goalspec start "<intent>"`.
+- `/goalspec source <path>` -> run `.goalspec/goalspec source <path>`.
+- `/goalspec end` -> run `.goalspec/goalspec end`, then draft Goal, Criteria, Constraints, out-of-scope, and blocking questions for human review.
 - `确认` after package review -> run `.goalspec/goalspec approve intake-package`, then `.goalspec/goalspec intake apply-suggestions`.
-- `/goalspec next` or "继续" -> run status and execute only the current `NEXT_ACTION`.
+- `确认` after Goal/Criteria/Constraints review -> freeze the reviewed artifacts and stop. Do not implement.
+- `/goalspec run` -> run `.goalspec/goalspec run`, read the full Goal-Driven Prompt before modifying business code, and execute that prompt.
+- "继续" -> run status. Do not begin implementation unless the user explicitly includes `/goalspec run`.
 
 For complete command mapping, read `references/command-map.md`.
 
@@ -49,4 +51,7 @@ Use `references/constraint-extraction.md` for extraction rules. Show both files 
 - Never write `goal.md` from unapproved conversation capture.
 - Never write `project/**` directly from unconfirmed suggestions.
 - Never treat implementation steps as goal or project constraints unless the human explicitly confirms them as constraints.
-- Never self-certify completion. Completion requires guardian verdicts and `.goalspec/goalspec complete`.
+- Never treat confirmation as run permission.
+- Never modify business code before reading `.goalspec/active/goal-driven-prompt.md` in full after an allowed `/goalspec run`.
+- If `.goalspec/goalspec run` prints `GOALSPEC_RUN_ALLOWED: false`, stop.
+- Never self-certify completion. Completion requires Master/Guardian verdicts and `.goalspec/goalspec complete`.

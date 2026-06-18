@@ -79,7 +79,13 @@ EOF
     yq e -i ".intake_session.status = \"closed\"" "$state_file"
     yq e -i ".intake_session.ended_at = \"$(goalspec_now)\"" "$state_file"
     echo "intake collection closed"
-    echo "next: write active/intake-capture.md and active/constraint-suggestions.yaml, get human approval with 'goalspec approve intake-package', apply suggestions, then write active/goal.md"
+    echo "DRAFT_FOR_HUMAN_REVIEW_REQUIRED:"
+    echo "  - Goal"
+    echo "  - Criteria"
+    echo "  - Constraints"
+    echo "  - Out of Scope"
+    echo "  - Blocking Questions"
+    echo "next_user_action: draft these from active/intake-capture.md, active/constraint-suggestions.yaml, active/intake-conversation.md, and active/intake-sources.yaml; then ask the human to confirm or modify."
     ;;
   apply-suggestions)
     [ -f "$state_file" ] || { echo "goalspec intake apply-suggestions: no active goal" >&2; exit 1; }

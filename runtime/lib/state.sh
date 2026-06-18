@@ -9,9 +9,13 @@ goalspec_state_valid_transition() {
     intake_reviewed:contract_draft|\
     contract_draft:contract_reviewed|\
     contract_reviewed:compiled|\
+    contract_reviewed:prompt_ready|\
     compiled:running|\
+    prompt_ready:running|\
     running:compiled|\
+    running:prompt_ready|\
     compiled:completed|\
+    prompt_ready:completed|\
     running:completed|\
     *:blocked|\
     *:reopen_required|\
