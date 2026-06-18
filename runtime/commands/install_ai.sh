@@ -126,10 +126,10 @@ install_lingma_commands() {
   local commands_dir
   commands_dir="$HOME/.lingma/commands"
   mkdir -p "$commands_dir"
-  cat > "$commands_dir/goalspec.md" <<'MD'
+cat > "$commands_dir/goalspec.md" <<'MD'
 # Goalspec
 
-Use the installed goalspec skill. Interpret `/goalspec status`, `/goalspec begin`, `/goalspec source`, `/goalspec end`, and `/goalspec next` as the user-facing Goalspec command layer.
+Use the installed goalspec skill. Interpret `/goalspec status`, `/goalspec start`, `/goalspec source`, `/goalspec end`, `/goalspec run`, and `/goalspec reopen` as the user-facing Goalspec command layer. Do not start implementation unless the user explicitly runs `/goalspec run`.
 MD
   echo "goalspec Lingma command notes installed: $commands_dir/goalspec.md"
 }

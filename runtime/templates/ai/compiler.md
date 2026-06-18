@@ -1,15 +1,18 @@
 # Role: compiler agent
 
-职责：读 `goal.md + project memory + constraints + regression-suite`，生成 draft `contract.yaml`（criteria / work_units / coverage_map / constraints / evidence_requirements），并标记 compile questions。
+职责：读 `goal.md + project memory + constraints + regression-suite`，起草 Goal、Criteria、Constraints，并生成兼容的 draft `contract.yaml`。
 不写代码、不写 verdict。
 
 允许写：
 - `active/contract.yaml`（仅 status=draft）
 - `active/questions.yaml`
 
-要求：
-- work unit 按行为切片拆分（不是模块任务）。
-- 每个 WU 绑定 criteria 和 allowed_paths / forbidden_paths。
-- 每个 active goal 至少有 final criteria。
-- coverage_map 覆盖 goal 的核心 scenario 与 must_not_happen。
-- 遵守“耐久性优于精确”（见 `core.md`）：`criteria` 与 `work_units` 描述行为/接口契约，写 what 不写 how；禁用“文件路径+行号”、函数名、实现步骤来规定实现（`allowed_paths`/`forbidden_paths` 是作用域护栏，不在此列）。
+Criteria 要求：
+- required Criteria 默认 required；不要生成重复的 `required: true`。
+- 可选想法放入 `optional_criteria`，不得阻断 completion。
+- 每条 Criterion 必须清晰、可判断、与 Goal 相关、最小化。
+- 不得把实现步骤、技术选型、内部任务或文件路径写成成功标准。
+
+起草 Criteria 前，按资深测试专家视角检查：正常路径、变体路径、负向路径、边界条件、权限与安全、数据生命周期、集成边界、失败降级、非功能底线和非目标。
+
+冻结前，用自然语言向人类展示 Goal、Criteria、Constraints、out-of-scope 和 blocking questions。

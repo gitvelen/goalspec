@@ -2,7 +2,12 @@ active_goal_id: null
 status: draft
 goal_hash: null
 contract_hash: null
+criteria_hash: null
+constraints_hash: null
 evidence_hash: null
+prompt_hash: null
+confirmed_at: null
+prompt_generated_at: null
 memory_patch_hash: null
 intake_capture_hash: null
 intake_package_hash: null

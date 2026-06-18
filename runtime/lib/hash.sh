@@ -51,6 +51,23 @@ goalspec_contract_hash() {
   echo "sha256:${h}"
 }
 
+goalspec_criteria_hash() {
+  goalspec_hash_file "$GOALSPEC_ROOT/active/criteria.yaml"
+}
+
+goalspec_constraints_hash() {
+  goalspec_hash_file "$GOALSPEC_ROOT/active/constraints.yaml"
+}
+
+goalspec_prompt_hash() {
+  local pf="$GOALSPEC_ROOT/active/goal-driven-prompt.md"
+  [ -f "$pf" ] || { echo ""; return 1; }
+  local stripped h
+  stripped="$(sed 's/^prompt_hash: .*/prompt_hash: null/' "$pf")"
+  h="$(printf '%s' "$stripped" | sha256sum | awk '{print $1}')"
+  echo "sha256:${h}"
+}
+
 goalspec_evidence_hash() {
   goalspec_hash_file "$GOALSPEC_ROOT/active/evidence.yaml"
 }

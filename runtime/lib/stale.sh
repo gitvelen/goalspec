@@ -24,6 +24,27 @@ goalspec_stale_contract_changed() {
   [ -n "$cur_rec" ] && [ "$cur_rec" != "null" ] && [ "$cur" != "$cur_rec" ]
 }
 
+goalspec_stale_criteria_changed() {
+  local cur cur_rec
+  cur="$(goalspec_criteria_hash)"
+  cur_rec="$(goalspec_state_get 'criteria_hash')"
+  [ -n "$cur_rec" ] && [ "$cur_rec" != "null" ] && [ "$cur" != "$cur_rec" ]
+}
+
+goalspec_stale_constraints_changed() {
+  local cur cur_rec
+  cur="$(goalspec_constraints_hash)"
+  cur_rec="$(goalspec_state_get 'constraints_hash')"
+  [ -n "$cur_rec" ] && [ "$cur_rec" != "null" ] && [ "$cur" != "$cur_rec" ]
+}
+
+goalspec_stale_prompt_changed() {
+  local cur cur_rec
+  cur="$(goalspec_prompt_hash)"
+  cur_rec="$(goalspec_state_get 'prompt_hash')"
+  [ -n "$cur_rec" ] && [ "$cur_rec" != "null" ] && [ "$cur" != "$cur_rec" ]
+}
+
 goalspec_stale_evidence_changed() {
   local cur cur_rec
   cur="$(goalspec_evidence_hash)"
@@ -106,6 +127,15 @@ goalspec_stale_blockers() {
   fi
   if goalspec_stale_contract_changed; then
     out="${out}contract_changed "
+  fi
+  if goalspec_stale_criteria_changed; then
+    out="${out}criteria_changed "
+  fi
+  if goalspec_stale_constraints_changed; then
+    out="${out}constraints_changed "
+  fi
+  if goalspec_stale_prompt_changed; then
+    out="${out}prompt_changed "
   fi
   if goalspec_stale_evidence_changed; then
     out="${out}evidence_changed "

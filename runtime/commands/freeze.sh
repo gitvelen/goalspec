@@ -65,9 +65,11 @@ yq e -i ".contract_hash = \"$chash\"" "$cf"
 # state hash + transition.
 yq e -i ".contract_hash = \"$chash\"" "$state_file"
 yq e -i ".evidence_hash = \"$(goalspec_evidence_hash)\"" "$state_file"
-goalspec_state_set_status compiled
+goalspec_prompt_generate
+goalspec_state_set_status prompt_ready
 # Record base_revision for scope checks from here.
 yq e -i ".git.base_revision = \"$(goalspec_git_head)\"" "$state_file"
 
 echo "contract frozen. contract_hash=$chash"
-echo "next: 'goalspec next' to pick the first work unit"
+echo "goal-driven prompt ready: .goalspec/active/goal-driven-prompt.md"
+echo "next: run 'goalspec run' to begin implementation"
