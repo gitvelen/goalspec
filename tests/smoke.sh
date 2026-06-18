@@ -2,7 +2,7 @@
 # tests/smoke.sh — full positive lifecycle in a temp git repo.
 set -uo pipefail
 
-FRAMEWORK=/home/admin/.goalspec
+FRAMEWORK="${FRAMEWORK:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 TMP="${TMPDIR:-/tmp}/goalspec-smoke-$$"
 trap '/bin/rm -rf "$TMP" "$WORK"' EXIT
 
@@ -33,7 +33,7 @@ git add -A && git commit -q -m baseline || true
 ok init
 
 # 2. status
-"$GS" status | /bin/grep -q NEXT_ACTION || fail status
+"$GS" status | /bin/grep -q NEXT_USER_ACTION || fail status
 ok status
 
 # 3. new-goal
@@ -164,8 +164,8 @@ ok freeze
 "$GS" next | /bin/grep -q "WU-001" || fail next
 ok next
 
-# 12a. status reports all nine required fields (GOALC #21)
-for fld in STATE NEXT_ACTION ROLE READ MAY_EDIT MUST_NOT_EDIT BLOCKERS CURRENT_WORK_UNIT COMPLETION_CONDITION; do
+# 12a. status reports goal-driven fields (GOALC #21)
+for fld in STATE GOAL FROZEN PROMPT_READY RUN_ALLOWED NEEDS_HUMAN_CONFIRMATION BLOCKERS UNMET_CRITERIA NEXT_USER_ACTION; do
   "$GS" status | /bin/grep -q "^${fld}:" || fail "status missing $fld"
 done
 "$GS" status --json | yq e '.state' - >/dev/null || fail "status --json broken"
