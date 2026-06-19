@@ -11,6 +11,13 @@ goalspec_help() {
   cat <<'EOF'
 goalspec — goal-driven spec framework
 
+Three core actions:
+  start <intent>   begin defining a change
+  run              begin implementation; generate a close package when Criteria pass
+  close            close out: apply memory, archive, commit, push, open a PR
+
+Only state "closed" allows the next "start".
+
 Usage:
   goalspec <command> [args]
 
@@ -22,11 +29,15 @@ Commands:
   install-skill [dest-dir]      Install bundled Goalspec AI skill
   install-ai <tool>             Install AI tool adapter (codex|claude|lingma)
   status [--json]               Show current goal-driven state
-  start <intent>                Start the formal intake window
+  start <intent>                Start the formal intake window (only from
+                                no_goal or closed)
   source <path>                 Add a file or directory source to intake
   end                           Close the formal intake window
   run                           Begin implementation from the frozen
-                                Goal-Driven Prompt
+                                Goal-Driven Prompt; generate a close package
+                                when all required Criteria pass
+  close                         Confirm the close package, apply memory, archive
+                                history, commit, push, and open a PR (-> closed)
   reopen [reason]               Reopen when frozen artifacts are wrong
 
 Internal commands:
@@ -44,16 +55,16 @@ Internal commands:
                                 memory-patch|intake-package|intake-capture|
                                 high-risk|regression-waiver)
   freeze                        Freeze reviewed artifacts and generate prompt
-  evidence template [scope_id]  Print an evidence template
-  evidence check                Validate evidence.yaml
-  judge prompt [wu_id]          Print a guardian judge prompt
-  judge apply <verdict.yaml>    Apply a guardian verdict file
+  evidence template [criteria_id]  Print an evidence template
+  evidence check                   Validate evidence.yaml
+  judge prompt [criteria_id]       Print a Master verdict prompt
+  judge apply <verdict.yaml>       Apply a Master verdict file
   scope-check                   Check that diffs are within scope
   validate [target] [--strict] [--json]
                                 Validate active/ artifacts (collect-all, no
                                 fail-fast). target: goal|contract|evidence|
                                 verdict|state|intake|all (default all)
-  complete                      Run the completion gate
+  complete                      Legacy internal alias for close readiness gate
   yq which|install              Manage the bundled yq dependency
                                 (which: show resolved binary; install: fetch a
                                 matching mikefarah yq v4 into runtime/bin/)
@@ -126,13 +137,13 @@ case "$cmd" in
   source)            exec bash "$GOALSPEC_BIN_DIR/intake.sh" add-source "$@" ;;
   end)               exec bash "$GOALSPEC_BIN_DIR/intake.sh" end "$@" ;;
   run)               exec bash "$GOALSPEC_BIN_DIR/run.sh" "$@" ;;
+  close)             exec bash "$GOALSPEC_BIN_DIR/close.sh" "$@" ;;
   intake)            exec bash "$GOALSPEC_BIN_DIR/intake.sh" "$@" ;;
   new-goal)          exec bash "$GOALSPEC_BIN_DIR/new_goal.sh" "$@" ;;
   review)            exec bash "$GOALSPEC_BIN_DIR/review.sh" "$@" ;;
   compile)           exec bash "$GOALSPEC_BIN_DIR/compile.sh" "$@" ;;
   approve)           exec bash "$GOALSPEC_BIN_DIR/approve.sh" "$@" ;;
   freeze)            exec bash "$GOALSPEC_BIN_DIR/freeze.sh" "$@" ;;
-  next)              exec bash "$GOALSPEC_BIN_DIR/next.sh" "$@" ;;
   evidence)          exec bash "$GOALSPEC_BIN_DIR/evidence.sh" "$@" ;;
   judge)             exec bash "$GOALSPEC_BIN_DIR/judge.sh" "$@" ;;
   scope-check)       exec bash "$GOALSPEC_BIN_DIR/scope_check.sh" "$@" ;;

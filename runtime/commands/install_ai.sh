@@ -129,7 +129,23 @@ install_lingma_commands() {
 cat > "$commands_dir/goalspec.md" <<'MD'
 # Goalspec
 
-Use the installed goalspec skill. Interpret `/goalspec status`, `/goalspec start`, `/goalspec source`, `/goalspec end`, `/goalspec run`, and `/goalspec reopen` as the user-facing Goalspec command layer. Do not start implementation unless the user explicitly runs `/goalspec run`.
+Use the installed goalspec skill. Interpret `/goalspec status`, `/goalspec start`, `/goalspec source`, `/goalspec end`, `/goalspec run`, `/goalspec close`, and `/goalspec reopen` as the user-facing Goalspec command layer.
+
+`/goalspec start` opens the formal intake window only when status is `no_goal` or `closed`. `/goalspec source <path>` only adds material while the window is open (collecting). `/goalspec end` is the only command that closes the window. Do not start implementation unless the user explicitly runs `/goalspec run`.
+
+## Run hard rules
+
+When the user runs `/goalspec run`:
+
+1. Run `.goalspec/goalspec run`.
+2. If it prints `GOALSPEC_RUN_ALLOWED: false`, stop immediately.
+3. If it prints `GOALSPEC_RUN_ALLOWED: true`, read `.goalspec/active/goal-driven-prompt.md` in full before modifying any business code.
+4. Treat the Prompt's Goal, Criteria, and Constraints as the authoritative control for this execution.
+5. Do not substitute your own implementation plan for this Prompt. Do not execute from memory.
+6. Do not continue if the Prompt is missing, stale, or not frozen.
+7. Never treat "confirm" or "continue" as run permission unless the user explicitly includes `/goalspec run`.
+
+If the tool supports explicit subagents, create exactly one Subagent to execute; otherwise simulate role separation with visible `Master Evaluation`, `Subagent Work`, and `Evidence/Progress Report` phases. Do not self-declare completion — Criteria completion only comes from Master verdicts, and delivery closure only comes from a successful `.goalspec/goalspec close`. Do not manually replace close with git/gh/archive/state edits.
 MD
   echo "goalspec Lingma command notes installed: $commands_dir/goalspec.md"
 }

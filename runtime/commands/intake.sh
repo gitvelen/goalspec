@@ -8,19 +8,18 @@ state_file="$GOALSPEC_ROOT/active/state.yaml"
 ensure_active_goal() {
   local gid cur_status
   gid="$(yq e '.active_goal_id // ""' "$state_file" 2>/dev/null || echo "")"
-  cur_status="$(yq e '.status // "draft"' "$state_file" 2>/dev/null || echo "draft")"
-  if [ -n "$gid" ] && [ "$gid" != "null" ] && [ "$cur_status" != "completed" ]; then
-    [ "$cur_status" = "draft" ] || {
-      echo "goalspec intake: active goal is not in draft state (status=$cur_status)" >&2
-      exit 1
-    }
-    return 0
+  cur_status="$(yq e '.status // "no_goal"' "$state_file" 2>/dev/null || echo "no_goal")"
+  if [ -n "$gid" ] && [ "$gid" != "null" ] && [ "$cur_status" != "closed" ] && [ "$cur_status" != "completed" ]; then
+    case "$cur_status" in
+      no_goal|intake_collecting|spec_drafting|awaiting_human_confirmation) return 0 ;;
+      *) echo "goalspec intake: active goal is not closed (status=$cur_status). Close or reopen it before starting another change." >&2; exit 1 ;;
+    esac
   fi
 
   gid="$(goalspec_new_goal_id)"
   cp "$GOALSPEC_ROOT/runtime/templates/active/state.yaml" "$state_file"
   yq e -i ".active_goal_id = \"$gid\"" "$state_file"
-  yq e -i ".status = \"draft\"" "$state_file"
+  yq e -i ".status = \"spec_drafting\"" "$state_file"
   yq e -i ".git.base_revision = \"$(goalspec_git_head)\"" "$state_file"
   yq e -i ".git.current_revision = \"$(goalspec_git_head)\"" "$state_file"
   cp "$GOALSPEC_ROOT/runtime/templates/active/goal.md" "$GOALSPEC_ROOT/active/goal.md"
@@ -55,12 +54,18 @@ EOF
     yq e -i ".intake_session.status = \"collecting\"" "$state_file"
     yq e -i ".intake_session.started_at = \"$(goalspec_now)\"" "$state_file"
     yq e -i ".intake_session.ended_at = null" "$state_file"
+    goalspec_state_set_status intake_collecting
     echo "intake collecting: $conv"
     echo "next: append begin/end conversation turns to active/intake-conversation.md; then run 'goalspec intake end'"
     ;;
   add-source)
     [ $# -ge 1 ] || { echo "usage: goalspec intake add-source <path>" >&2; exit 2; }
-    ensure_active_goal
+    # Sources may only join an OPEN intake window. Do not auto-create a goal or
+    # accept material once the window is closed — both bypass the formal
+    # start/end intent boundary (see goalspec_enhance.md §9, §17).
+    [ -f "$state_file" ] || { echo "goalspec intake add-source: no active goal. Run 'goalspec start' to open an intake window first." >&2; exit 1; }
+    cur="$(yq e '.intake_session.status // "not_started"' "$state_file")"
+    [ "$cur" = "collecting" ] || { echo "goalspec intake add-source: intake window is not open (status=$cur). Run 'goalspec start' first; '/goalspec end' closes the window." >&2; exit 1; }
     for src in "$@"; do
       goalspec_intake_add_source "$src"
       echo "source added: $src"
@@ -78,6 +83,7 @@ EOF
     } >> "$conv"
     yq e -i ".intake_session.status = \"closed\"" "$state_file"
     yq e -i ".intake_session.ended_at = \"$(goalspec_now)\"" "$state_file"
+    goalspec_state_set_status spec_drafting
     echo "intake collection closed"
     echo "DRAFT_FOR_HUMAN_REVIEW_REQUIRED:"
     echo "  - Goal"

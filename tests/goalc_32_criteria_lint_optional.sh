@@ -2,7 +2,7 @@
 # GOALC #32: criteria lint and optional criteria completion behavior.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
-setup_contract_draft() {
+setup_contract_spec() {
   fresh_initialized_repo "$1"
   "$REPO_GS" new-goal "criteria lint test" >/dev/null
   make_minimal_goal_md "$REPO/.goalspec/active/goal.md"
@@ -10,7 +10,7 @@ setup_contract_draft() {
   "$REPO_GS" compile >/dev/null
 }
 
-setup_contract_draft goalc-32-lint
+setup_contract_spec goalc-32-lint
 cat > "$REPO/.goalspec/active/contract.yaml" <<'YML'
 status: draft
 goal_hash: placeholder
@@ -19,9 +19,7 @@ criteria:
   - id: CRIT-001
     statement: 完整正确支持目标
     final: true
-work_units: []
 evidence_requirements: []
-coverage_map: []
 constraints: []
 YML
 tmp_lint="$TESTS_TMP_ROOT/p32-lint"; mkdir -p "$tmp_lint"
@@ -68,20 +66,10 @@ criteria:
 optional_criteria:
   - id: OPT-001
     statement: User can export an additional report.
-work_units:
-  - id: WU-001
-    goal: prove required criteria
-    criteria_refs: [CRIT-001, CRIT-FINAL-001]
-    evidence_requirement_refs: [EVIDREQ-001]
-    allowed_paths: ["src/**"]
-    forbidden_paths: []
 evidence_requirements:
   - id: EVIDREQ-001
     runtime_boundary: browser
     statement: browser-level automation
-coverage_map:
-  - goal_ref: goal.md#intent
-    criteria_refs: [CRIT-001, CRIT-FINAL-001]
 constraints: []
 required_regressions: []
 allowed_paths: ["src/**"]
@@ -106,7 +94,6 @@ evidence:
     contract_hash: "$CHASH"
     criteria_refs: [CRIT-001, CRIT-FINAL-001]
     attempt: A1
-    work_unit_ref: WU-001
     evidence_requirement_refs: [EVIDREQ-001]
     command: "browser test"
     exit_code: 0
@@ -123,7 +110,6 @@ YML
 EHASH="$(cur_evidence_hash)"
 for crit in CRIT-001 CRIT-FINAL-001; do
   cat > "$tmp/$crit.yaml" <<YML
-work_unit_ref: WU-001
 criteria_ref: $crit
 evidence_refs: [EV-001]
 contract_hash: "$CHASH"
@@ -131,7 +117,7 @@ evidence_hash: "$EHASH"
 verdict: pass
 reason: "$crit passed"
 context: fresh
-judged_by: master
+evaluated_by: master
 YML
   "$REPO_GS" judge apply "$tmp/$crit.yaml" >/dev/null || bad "judge apply failed for $crit"
 done

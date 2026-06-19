@@ -19,7 +19,6 @@ YML
 "$REPO_GS" review apply "$tmp/contract-pass.yaml" >/dev/null
 "$REPO_GS" approve contract >/dev/null
 "$REPO_GS" freeze >/dev/null
-"$REPO_GS" next >/dev/null
 
 CHASH="$(yq e '.contract_hash' "$REPO/.goalspec/active/contract.yaml")"
 # produce an evidence entry
@@ -29,7 +28,6 @@ cat > "$REPO/.goalspec/active/evidence.yaml" <<YML
 evidence:
   - id: EV-001
     contract_hash: "$CHASH"
-    work_unit_ref: WU-001
     criteria_refs: [CRIT-001]
     evidence_requirement_refs: [EVIDREQ-001]
     command: "browser-test"
@@ -40,7 +38,7 @@ evidence:
     persistence: memory
     completion_level: integrated_runtime
     reproducible: true
-    produced_by: executor
+    produced_by: subagent
     produced_at: 2026-06-15T00:00:00Z
     residual_risk: {level: none, notes: ""}
 YML
@@ -48,7 +46,6 @@ EHASH="$(cur_evidence_hash)"
 
 # judge apply a pass verdict with correct hashes
 cat > "$tmp/v1.yaml" <<YML
-work_unit_ref: WU-001
 criteria_ref: CRIT-001
 evidence_refs: [EV-001]
 contract_hash: "$CHASH"
@@ -56,7 +53,7 @@ evidence_hash: "$EHASH"
 verdict: pass
 reason: ok
 context: fresh
-judged_by: guardian
+evaluated_by: master
 YML
 "$REPO_GS" judge apply "$tmp/v1.yaml" >/dev/null && ok "judge apply pass with matching hashes"
 
@@ -65,7 +62,6 @@ yq e -i '.criteria[0].statement = "TAMPERED"' "$REPO/.goalspec/active/contract.y
 # new evidence hash if evidence changed (it didn't), but contract hash changed.
 NEW_CHASH="$(cur_contract_hash)"
 cat > "$tmp/v2.yaml" <<YML
-work_unit_ref: WU-001
 criteria_ref: CRIT-001
 evidence_refs: [EV-001]
 contract_hash: "$CHASH"
@@ -73,7 +69,7 @@ evidence_hash: "$EHASH"
 verdict: pass
 reason: trying old hash
 context: fresh
-judged_by: guardian
+evaluated_by: master
 YML
 if "$REPO_GS" judge apply "$tmp/v2.yaml" >/dev/null 2>&1; then
   bad "judge apply accepted stale contract_hash"

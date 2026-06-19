@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# judge.sh — guardian verdict prompt / apply (GOALC #14).
+# judge.sh — Master verdict prompt / apply (goal-driven: verdicts anchor on
+# Criteria, not work units; enhance.md §12).
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)/load.sh"
 
@@ -10,31 +11,30 @@ vf="$GOALSPEC_ROOT/active/verdict.yaml"
 
 case "$sub" in
   prompt)
-    wu="${1:-}"
+    crit="${1:-}"
     cat <<EOF
-# Guardian judge prompt (fresh context)
+# Master verdict prompt (fresh context)
 
-You are the GUARDIAN. Do not read any executor conversation. Read ONLY:
+You are the MASTER. Do not read any Subagent conversation. Read ONLY:
   - .goalspec/active/contract.yaml
   - .goalspec/active/evidence.yaml
   - .goalspec/active/trace.yaml
   - .goalspec/active/state.yaml
   - .goalspec/active/regressions.yaml
   - .goalspec/artifacts/**
-${wu:+  - work unit of interest: $wu}
+${crit:+  - criterion of interest: $crit}
 
-Verify the relevant criteria against the evidence. Rules:
-  - context MUST be fresh.
+Verify the relevant Criteria against the evidence. Rules:
+  - context MUST be fresh; do not trust the Subagent's self-report.
   - the verdict's contract_hash MUST equal the current frozen contract hash.
   - the verdict's evidence_hash MUST equal the current evidence.yaml hash.
   - all referenced evidence_ids and criteria_refs must exist.
   - a 'pass' verdict MUST cite evidence whose runtime_boundary and facets meet
-    the criteria's evidence_requirement.
-  - If the criteria cannot be proven, emit fail/insufficient/blocked/stale/
+    the criterion's evidence_requirement_refs.
+  - If the criterion cannot be proven, emit fail/insufficient/blocked/stale/
     reopen_required as appropriate (never pretend pass).
 
 Emit a YAML document with these fields:
-  work_unit_ref: "$wu"
   criteria_ref: "<CRIT-...>"
   evidence_refs: [EV-...]
   contract_hash: "<sha256:...>"
@@ -42,7 +42,7 @@ Emit a YAML document with these fields:
   verdict: pass | fail | insufficient | blocked | stale | reopen_required
   reason: "..."
   context: fresh
-  judged_by: guardian
+  evaluated_by: master
 EOF
     ;;
   apply)
@@ -81,11 +81,10 @@ EOF
       i=$((i+1))
     done
     verdict="$(yq e '.verdict' "$file")"
-    wu_ref="$(yq e '.work_unit_ref' "$file")"
-    # If verdict=pass, the cited evidence must satisfy the criteria's evidence_requirement_refs.
+    # If verdict=pass, the cited evidence must satisfy the criterion's
+    # evidence_requirement_refs (criteria carry the requirements now).
     if [ "$verdict" = "pass" ]; then
-      # Required evidence requirements for this WU+criteria
-      reqs="$(yq e ".work_units[] | select(.id == \"$wu_ref\") | .evidence_requirement_refs.[]" "$cf")"
+      reqs="$(yq e ".criteria[] | select(.id == \"$crit\") | .evidence_requirement_refs.[]" "$cf")"
       # Collect evidence_requirement_refs actually cited by the evidence used.
       cited_reqs=""
       i=0
@@ -115,7 +114,7 @@ EOF
     /bin/rm -f "$tmp"
     # Update evidence_hash snapshot in state to track future stale.
     yq e -i ".evidence_hash = \"$(goalspec_evidence_hash)\"" "$GOALSPEC_ROOT/active/state.yaml"
-    echo "verdict applied: $verdict (crit=$crit wu=$wu_ref)"
+    echo "verdict applied: $verdict (crit=$crit)"
     ;;
   *)
     echo "usage: goalspec judge prompt|apply" >&2; exit 2

@@ -109,20 +109,10 @@ criteria:
     final: true
     statement: final integration pass
     evidence_requirement_refs: [EVIDREQ-001]
-work_units:
-  - id: WU-001
-    goal: do behavior A
-    criteria_refs: [CRIT-001]
-    evidence_requirement_refs: [EVIDREQ-001]
-    allowed_paths: ["src/**"]
-    forbidden_paths: [".goalspec/project/**", "billing/**"]
 evidence_requirements:
   - id: EVIDREQ-001
     runtime_boundary: browser
     statement: browser-level automation
-coverage_map:
-  - goal_ref: goal.md#intent
-    criteria_refs: [CRIT-001]
 constraints: []
 required_regressions: []
 allowed_paths: ["src/**"]
@@ -146,7 +136,7 @@ YML
 
 # Compile, write minimal contract, apply passing contract review, approve contract.
 # Used as a shortcut to reach the freeze step.
-compile_to_contract_reviewed() {
+compile_to_awaiting_confirmation() {
   "$REPO_GS" compile >/dev/null
   make_minimal_contract "$REPO/.goalspec/active/contract.yaml"
   local tmp="$TESTS_TMP_ROOT/payloads"
@@ -161,7 +151,7 @@ YML
   "$REPO_GS" approve contract >/dev/null
 }
 
-# Run the freeze step. Assumes compile_to_contract_reviewed has run.
+# Run the freeze step. Assumes compile_to_awaiting_confirmation has run.
 do_freeze() {
   "$REPO_GS" freeze >/dev/null
 }
@@ -174,3 +164,26 @@ cur_contract_hash()  {
 }
 cur_evidence_hash()  { sha256sum "$REPO/.goalspec/active/evidence.yaml" | awk '{print "sha256:"$1}'; }
 cur_mpatch_hash()    { sha256sum "$REPO/.goalspec/active/memory-patch.yaml" | awk '{print "sha256:"$1}'; }
+
+install_fake_gh() {
+  local bindir="$TESTS_TMP_ROOT/bin"
+  mkdir -p "$bindir"
+  cat > "$bindir/gh" <<'SH'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "auth status") exit 0 ;;
+  "pr create") echo "https://example.test/org/repo/pull/1"; exit 0 ;;
+esac
+echo "fake gh: unsupported $*" >&2
+exit 1
+SH
+  chmod +x "$bindir/gh"
+  export PATH="$bindir:$PATH"
+}
+
+setup_test_remote() {
+  local remote="$TESTS_TMP_ROOT/remote-$(basename "$REPO").git"
+  git init -q --bare "$remote"
+  ( cd "$REPO" && git remote remove origin >/dev/null 2>&1 || true )
+  ( cd "$REPO" && git remote add origin "$remote" )
+}

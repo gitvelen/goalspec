@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Test: goalspec evidence template prints a WU-scoped entry carrying the current
-#       contract_hash and the WU's criteria/evidence-requirement refs; and
+# Test: goalspec evidence template prints a criterion-scoped entry carrying the
+#       current contract_hash and the criterion's evidence-requirement refs; and
 #       evidence check passes when an entry's contract_hash is current and fails
 #       (stale) when it does not match the frozen contract.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
@@ -25,11 +25,12 @@ YML
 CHASH="$(yq e '.contract_hash' "$REPO/.goalspec/active/contract.yaml")"
 ef="$REPO/.goalspec/active/evidence.yaml"
 
-# 1. template prints a WU-001 entry with current contract_hash + refs.
-tpl="$("$REPO_GS" evidence template WU-001)"
-printf '%s\n' "$tpl" | grep -q 'work_unit_ref: "WU-001"' && ok "template has work_unit_ref WU-001" || bad "template missing work_unit_ref"
+# 1. template prints a CRIT-001-scoped entry with current contract_hash + refs.
+tpl="$("$REPO_GS" evidence template CRIT-001)"
 printf '%s\n' "$tpl" | grep -q 'criteria_refs: \["CRIT-001"\]' && ok "template has criteria_refs [CRIT-001]" || bad "template missing criteria_refs"
 printf '%s\n' "$tpl" | grep -q 'evidence_requirement_refs: \["EVIDREQ-001"\]' && ok "template has evidence_requirement_refs [EVIDREQ-001]" || bad "template missing evidence_requirement_refs"
+printf '%s\n' "$tpl" | grep -q 'produced_by: subagent' && ok "template has produced_by subagent" || bad "template missing produced_by subagent"
+if printf '%s\n' "$tpl" | grep -q 'work_unit_ref'; then bad "template still carries work_unit_ref"; else ok "template has no work_unit_ref"; fi
 printf '%s\n' "$tpl" | grep -q "contract_hash: \"$CHASH\"" && ok "template carries current contract_hash" || bad "template missing/wrong contract_hash"
 
 # 2. evidence check passes when entry contract_hash is current.
@@ -37,7 +38,6 @@ cat > "$ef" <<YML
 evidence:
   - id: EV-001
     contract_hash: "$CHASH"
-    work_unit_ref: WU-001
     criteria_refs: [CRIT-001]
     evidence_requirement_refs: [EVIDREQ-001]
     command: t
@@ -55,7 +55,6 @@ cat > "$ef" <<YML
 evidence:
   - id: EV-001
     contract_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
-    work_unit_ref: WU-001
     criteria_refs: [CRIT-001]
     evidence_requirement_refs: [EVIDREQ-001]
     command: t

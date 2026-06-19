@@ -1,23 +1,53 @@
 #!/usr/bin/env bash
-# GOALC #17: with all required+final+hard criteria pass, no blocking questions,
-#            scope-check pass, memory-patch approved -> complete succeeds.
-# (This mirrors the smoke positive lifecycle as an explicit GOALC test.)
+# GOALC #34: criteria are required by default — a criterion without any
+#            required_for_completion/final/P0 flag must still block completion
+#            when it has no pass verdict.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
-fresh_initialized_repo goalc-17
+fresh_initialized_repo goalc-34
 "$REPO_GS" new-goal "test" >/dev/null
 make_minimal_goal_md "$REPO/.goalspec/active/goal.md"
 approve_intake_and_goal
 "$REPO_GS" compile >/dev/null
-make_minimal_contract "$REPO/.goalspec/active/contract.yaml"
-tmp="$TESTS_TMP_ROOT/p17"; mkdir -p "$tmp"
-cat > "$tmp/c.yaml" <<'YML'
+
+# CRIT-002 has no priority/required_for_completion/final flags. Under the old
+# filter it was skipped; under "required by default" it must block completion.
+cat > "$REPO/.goalspec/active/contract.yaml" <<'YML'
+status: draft
+goal_hash: placeholder
+project_memory_hash: placeholder
+contract_hash: null
+criteria:
+  - id: CRIT-001
+    priority: P0
+    required_for_completion: true
+    statement: behavior A observed
+    evidence_requirement_refs: [EVIDREQ-001]
+  - id: CRIT-002
+    statement: behavior B observed
+    evidence_requirement_refs: [EVIDREQ-001]
+  - id: CRIT-FINAL-001
+    priority: P0
+    final: true
+    statement: final integration pass
+    evidence_requirement_refs: [EVIDREQ-001]
+evidence_requirements:
+  - id: EVIDREQ-001
+    runtime_boundary: browser
+    statement: browser-level automation
+constraints: []
+required_regressions: []
+allowed_paths: ["src/**"]
+forbidden_paths: []
+YML
+tmp="$TESTS_TMP_ROOT/p34"; mkdir -p "$tmp"
+cat > "$tmp/contract.yaml" <<'YML'
 kind: contract
 result: pass
 blocking_questions: []
 notes: ok
 YML
-"$REPO_GS" review apply "$tmp/c.yaml" >/dev/null
+"$REPO_GS" review apply "$tmp/contract.yaml" >/dev/null
 "$REPO_GS" approve contract >/dev/null
 "$REPO_GS" freeze >/dev/null
 
@@ -27,7 +57,7 @@ cat > "$REPO/.goalspec/active/evidence.yaml" <<YML
 evidence:
   - id: EV-001
     contract_hash: "$CHASH"
-    criteria_refs: [CRIT-001]
+    criteria_refs: [CRIT-001, CRIT-002]
     evidence_requirement_refs: [EVIDREQ-001]
     command: t
     exit_code: 0
@@ -43,6 +73,7 @@ evidence:
 YML
 EHASH="$(cur_evidence_hash)"
 
+# judge the flagged criteria pass, but LEAVE CRIT-002 (no flags) unjudged
 for c in CRIT-001 CRIT-FINAL-001; do
 cat > "$tmp/v-$c.yaml" <<YML
 criteria_ref: $c
@@ -68,9 +99,9 @@ YML
 "$REPO_GS" approve memory-patch >/dev/null
 
 if "$REPO_GS" complete >/dev/null 2>&1; then
-  ok "complete succeeds on all green path"
+  bad "complete succeeded with CRIT-002 (no flags) unjudged"
 else
-  bad "complete failed on all-green path"
+  ok "complete blocked: unflagged criterion without verdict is required"
 fi
 
 [ "$TESTS_FAIL" -eq 0 ]

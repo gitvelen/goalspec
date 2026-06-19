@@ -4,7 +4,7 @@ set -uo pipefail
 
 FRAMEWORK="${FRAMEWORK:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 TMP="${TMPDIR:-/tmp}/goalspec-smoke-$$"
-trap '/bin/rm -rf "$TMP" "$WORK"' EXIT
+trap '/bin/rm -rf "$TMP" "$WORK" "$SMOKE_REMOTE"' EXIT
 
 mkdir -p "$TMP"
 cd "$TMP"
@@ -15,6 +15,22 @@ git config user.name x
 GS="$TMP/.goalspec/goalspec"
 WORK="$(mktemp -d)"   # scratch dir for review/verdict payloads (must NOT pollute the business tree)
 
+install_fake_gh() {
+  local bindir
+  bindir="$(mktemp -d)"
+  cat > "$bindir/gh" <<'SH'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "auth status") exit 0 ;;
+  "pr create") echo "https://example.test/org/repo/pull/1"; exit 0 ;;
+esac
+echo "fake gh: unsupported $*" >&2
+exit 1
+SH
+  chmod +x "$bindir/gh"
+  export PATH="$bindir:$PATH"
+}
+
 ok() { echo "ok: $*"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
@@ -23,6 +39,11 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 # Re-source the local copy from now on so GOALSPEC_ROOT points here.
 # Commit a clean business baseline (only the goalspec framework + AGENTS/CLAUDE).
 git add -A && git commit -q -m baseline || true
+SMOKE_REMOTE="$(mktemp -d)/remote.git"
+git init -q --bare "$SMOKE_REMOTE"
+git remote add origin "$SMOKE_REMOTE"
+git push -u origin main >/dev/null 2>&1 || git push -u origin master >/dev/null 2>&1 || true
+install_fake_gh
 [ -x "$GS" ] || fail "goalspec not executable"
 [ -d "$TMP/.goalspec/runtime" ] || fail "runtime missing"
 [ -d "$TMP/.goalspec/ai" ] || fail "ai missing"
@@ -122,20 +143,10 @@ criteria:
     statement: all scenarios pass in browser
     pass_signals: ["green"]
     evidence_requirement_refs: [EVIDREQ-001]
-work_units:
-  - id: WU-001
-    goal: snake moves
-    criteria_refs: [CRIT-001]
-    evidence_requirement_refs: [EVIDREQ-001]
-    allowed_paths: ["index.html"]
-    forbidden_paths: [".goalspec/project/**", ".goalspec/active/contract.yaml"]
 evidence_requirements:
   - id: EVIDREQ-001
     runtime_boundary: browser
     statement: browser automation
-coverage_map:
-  - goal_ref: goal.md#narrative
-    criteria_refs: [CRIT-001]
 constraints: []
 required_regressions: []
 allowed_paths: ["index.html"]
@@ -160,12 +171,8 @@ ok approve-contract
 "$GS" freeze >/dev/null || fail freeze
 ok freeze
 
-# 12. next
-"$GS" next | /bin/grep -q "WU-001" || fail next
-ok next
-
 # 12a. status reports goal-driven fields (GOALC #21)
-for fld in STATE GOAL FROZEN PROMPT_READY RUN_ALLOWED NEEDS_HUMAN_CONFIRMATION BLOCKERS UNMET_CRITERIA NEXT_USER_ACTION; do
+for fld in STATE GOAL FROZEN PROMPT_READY RUN_ALLOWED CLOSE_READY NEEDS_HUMAN_CONFIRMATION BLOCKERS UNMET_CRITERIA NEXT_USER_ACTION; do
   "$GS" status | /bin/grep -q "^${fld}:" || fail "status missing $fld"
 done
 "$GS" status --json | yq e '.state' - >/dev/null || fail "status --json broken"
@@ -186,7 +193,6 @@ cat > "$TMP/.goalspec/active/evidence.yaml" <<YML
 evidence:
   - id: EV-001
     contract_hash: "$CHASH"
-    work_unit_ref: WU-001
     criteria_refs: [CRIT-001]
     evidence_requirement_refs: [EVIDREQ-001]
     command: "browser-automation"
@@ -197,7 +203,7 @@ evidence:
     persistence: memory
     completion_level: integrated_runtime
     reproducible: true
-    produced_by: executor
+    produced_by: subagent
     produced_at: 2026-06-15T00:00:00Z
     residual_risk:
       level: none
@@ -209,13 +215,10 @@ echo "passed" > "$TMP/.goalspec/artifacts/EV-001.txt"
 # refresh evidence hash after the write
 EHASH="$(sha256sum "$TMP/.goalspec/active/evidence.yaml" | awk '{print "sha256:"$1}')"
 
-# 13a. scope-check passes: index.html is within WU-001 allowed_paths, but WU-001
-# has no pass verdict yet — so attribution will fail here. Apply after judge pass.
-# We instead verify scope-check works after judge pass below.
+# 13a. (scope-check attribution is verified via the sneaky.txt rejection in 14a.)
 
 # 14. judge apply for CRIT-001
 cat > "$WORK/verdict-001.yaml" <<YML
-work_unit_ref: WU-001
 criteria_ref: CRIT-001
 evidence_refs: [EV-001]
 contract_hash: "$CHASH"
@@ -223,17 +226,13 @@ evidence_hash: "$EHASH"
 verdict: pass
 reason: "EV-001 browser automation confirms snake moves on tick"
 context: fresh
-judged_by: guardian
+evaluated_by: master
 YML
 "$GS" judge apply "$WORK/verdict-001.yaml" >/dev/null || fail judge-001
 ok judge-001
 
-# 14a. scope-check (executor view): the guardian's verdict.yaml write is
-# allowed (judge apply protocol); business code (index.html) is within WU-001
-# allowed_paths and WU-001 has a pass verdict — so an explicit executor scope
-# check would still flag the post-judge verdict.yaml. We instead rely on
-# `complete` running scope-check in 'system' role internally. Verify here that
-# executor-side scope-check catches a NEW business file outside any WU scope:
+# 14a. scope-check (subagent view): a NEW business file outside contract
+# allowed_paths must be rejected.
 echo "x" > "$TMP/sneaky.txt"
 if "$GS" scope-check >/dev/null 2>&1; then
   fail "scope-check should reject unattributed sneaky.txt"
@@ -241,9 +240,9 @@ fi
 /bin/rm -f "$TMP/sneaky.txt"
 ok scope-check-rejects-unattributed
 
-# 15. judge apply for final criteria (CRIT-FINAL-001) — WU-001 also references EVIDREQ-001? Use WU-001
+# 15. judge apply for final criteria (CRIT-FINAL-001). Its
+# evidence_requirement_refs are [EVIDREQ-001], which EV-001 satisfies.
 cat > "$WORK/verdict-final.yaml" <<YML
-work_unit_ref: WU-001
 criteria_ref: CRIT-FINAL-001
 evidence_refs: [EV-001]
 contract_hash: "$CHASH"
@@ -251,13 +250,12 @@ evidence_hash: "$EHASH"
 verdict: pass
 reason: "EV-001 covers all scenarios in browser"
 context: fresh
-judged_by: guardian
+evaluated_by: master
 YML
-# final criteria isn't bound to a WU; judge by WU-001's evidence reqs (EVIDREQ-001) which EV-001 satisfies.
 "$GS" judge apply "$WORK/verdict-final.yaml" >/dev/null || fail judge-final
 ok judge-final
 
-# 16. memory-patch (guardian proposal)
+# 16. memory-patch (Master proposal)
 cat > "$TMP/.goalspec/active/memory-patch.yaml" <<'YML'
 patches:
   - kind: capability
@@ -274,13 +272,18 @@ YML
 "$GS" approve memory-patch >/dev/null || fail approve-memory-patch
 ok approve-memory-patch
 
-# 17. complete
-"$GS" complete || fail complete
-ok complete
+# 17. run generates close package, then close delivers
+"$GS" run >/dev/null || fail run-close-package
+[ "$(yq e '.status' "$TMP/.goalspec/active/state.yaml")" = "ready_to_close" ] || fail ready-to-close
+ok close-package
+"$GS" close >/dev/null || fail close
+ok close
 
 # 18. history archived
 [ -d "$TMP/.goalspec/history/v0001" ] || fail history
 [ -f "$TMP/.goalspec/history/v0001/summary.yaml" ] || fail summary
+[ -f "$TMP/.goalspec/history/v0001/delivery.yaml" ] || fail delivery
+[ "$(yq e '.status' "$TMP/.goalspec/active/state.yaml")" = "closed" ] || fail closed-state
 ok history-archived
 
 echo "SMOKE: all green"

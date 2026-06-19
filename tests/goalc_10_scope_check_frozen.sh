@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# GOALC #10: after freeze, executor modifying contract.yaml / project/** / history/**
-#            or WU forbidden paths must fail scope-check.
+# GOALC #10: after freeze, Subagent modifying contract.yaml / project/** / history/**
+#            or out-of-scope paths must fail scope-check.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 fresh_initialized_repo goalc-10
@@ -49,21 +49,21 @@ else
 fi
 /bin/rm -rf "$REPO/.goalspec/history/hack.yaml"
 
-# D) edit file under a WU forbidden path (billing/** from minimal contract)
+# D) edit file outside contract allowed_paths (billing is not under src/**)
 mkdir -p "$REPO/billing"; echo x > "$REPO/billing/x.txt"
 if "$REPO_GS" scope-check >/dev/null 2>&1; then
-  bad "scope-check did not catch WU forbidden path write"
+  bad "scope-check did not catch out-of-scope path write"
 else
-  ok "scope-check caught WU forbidden path write"
+  ok "scope-check caught out-of-scope path write"
 fi
 /bin/rm -rf "$REPO/billing"
 
-# E) executor direct edit of verdict.yaml (executor role)
+# E) Subagent direct edit of verdict.yaml (subagent role)
 echo x > "$REPO/.goalspec/active/verdict.yaml"
 if "$REPO_GS" scope-check >/dev/null 2>&1; then
-  bad "scope-check did not catch executor verdict.yaml write"
+  bad "scope-check did not catch Subagent verdict.yaml write"
 else
-  ok "scope-check caught executor verdict.yaml write"
+  ok "scope-check caught Subagent verdict.yaml write"
 fi
 /bin/rm -f "$REPO/.goalspec/active/verdict.yaml"
 

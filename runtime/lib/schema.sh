@@ -31,30 +31,24 @@ goalspec_schema_goal_md() {
   [ "$errs" -eq 0 ]
 }
 
-# Validate work_unit entry has required fields.
-goalspec_schema_work_unit() {
-  local file="$1" id="$2"
-  goalspec_schema_require_fields "$file" \
-    ".work_units[] | select(.id == \"$id\") | .id" 2>/dev/null || true
-}
-
-# Validate contract.yaml minimal structure for freeze.
-# Returns 0 if valid; prints errors.
+# Validate contract.yaml minimal structure for freeze (goal-driven: only
+# Goal/Criteria/Constraints; no work_units/coverage_map). Returns 0 if valid.
 goalspec_schema_contract_freeze() {
   local cf="$GOALSPEC_ROOT/active/contract.yaml"
   local errs=0
-  local n_crit n_wu n_cov
+  local n_crit
   n_crit="$(yq e '.criteria | length' "$cf" 2>/dev/null || echo 0)"
-  n_wu="$(yq e '.work_units | length' "$cf" 2>/dev/null || echo 0)"
-  n_cov="$(yq e '.coverage_map | length' "$cf" 2>/dev/null || echo 0)"
   [ "$n_crit" -gt 0 ] 2>/dev/null || { echo "contract: no criteria" >&2; errs=$((errs+1)); }
-  [ "$n_wu" -gt 0 ] 2>/dev/null || { echo "contract: no work_units" >&2; errs=$((errs+1)); }
-  [ "$n_cov" -gt 0 ] 2>/dev/null || { echo "contract: no coverage_map" >&2; errs=$((errs+1)); }
-  # criteria must be declarable: have statement + pass_signals OR evidence refs
+  # evidence_requirement ids for ref resolution.
+  local evidreq_ids
+  evidreq_ids="$(yq e '.evidence_requirements[].id' "$cf" 2>/dev/null)"
+  # criteria must be declarable: have a statement that is neither vague nor an
+  # implementation step, and be decidable from evidence (non-empty, resolving
+  # evidence_requirement_refs) — enhance.md §6 Clear/Decidable/Relevant/Minimal.
   local idx=0
   local count="${n_crit}"
   while [ "$idx" -lt "$count" ]; do
-    local id stmt
+    local id stmt erefs
     id="$(yq e ".criteria[$idx].id" "$cf")"
     stmt="$(yq e ".criteria[$idx].statement // \"\"" "$cf")"
     if [ -z "$stmt" ]; then
@@ -69,6 +63,23 @@ goalspec_schema_contract_freeze() {
       echo "criteria ${id}: statement appears to encode implementation steps" >&2
       errs=$((errs+1))
     fi
+    # Decidable: must carry evidence_requirement_refs that resolve to defined
+    # evidence_requirements, otherwise the Master cannot judge pass/fail from
+    # evidence (and judge apply's pass-check would be trivially satisfied).
+    erefs="$(yq e ".criteria[$idx].evidence_requirement_refs[]" "$cf" 2>/dev/null)"
+    if [ -z "$erefs" ]; then
+      echo "criteria ${id}: missing evidence_requirement_refs (must be decidable from evidence)" >&2
+      errs=$((errs+1))
+    else
+      local r
+      while IFS= read -r r; do
+        [ -z "$r" ] && continue
+        if ! printf '%s\n' "$evidreq_ids" | grep -qxF "$r"; then
+          echo "criteria ${id}: evidence_requirement_ref '$r' not found in evidence_requirements" >&2
+          errs=$((errs+1))
+        fi
+      done <<<"$erefs"
+    fi
     idx=$((idx+1))
   done
   # final criteria present
@@ -76,24 +87,6 @@ goalspec_schema_contract_freeze() {
     echo "contract: missing final criteria" >&2
     errs=$((errs+1))
   fi
-  # every WU has criteria_refs
-  idx=0; count="$n_wu"
-  while [ "$idx" -lt "$count" ]; do
-    local id crefs areal
-    id="$(yq e ".work_units[$idx].id" "$cf")"
-    crefs="$(yq e ".work_units[$idx].criteria_refs | length" "$cf")"
-    if [ "${crefs:-0}" -lt 1 ]; then
-      echo "work_unit ${id}: missing criteria_refs" >&2
-      errs=$((errs+1))
-    fi
-    # allowed_paths must not be wildcard-only without approval
-    areal="$(yq e ".work_units[$idx].allowed_paths | length" "$cf")"
-    if [ "${areal:-0}" -lt 1 ]; then
-      echo "work_unit ${id}: missing allowed_paths" >&2
-      errs=$((errs+1))
-    fi
-    idx=$((idx+1))
-  done
   [ "$errs" -eq 0 ]
 }
 
@@ -102,7 +95,7 @@ goalspec_schema_verdict_file() {
   local vf="$1"
   [ -f "$vf" ] || { echo "verdict file not found: $vf" >&2; return 1; }
   local errs=0
-  for f in "work_unit_ref" "criteria_ref" "verdict" "contract_hash" "evidence_hash" "context" "reason"; do
+  for f in "criteria_ref" "verdict" "contract_hash" "evidence_hash" "context" "reason" "evaluated_by"; do
     local v
     v="$(yq e ".${f} // \"\"" "$vf")"
     if [ -z "$v" ]; then
@@ -117,6 +110,15 @@ goalspec_schema_verdict_file() {
     pass|fail|insufficient|blocked|stale|reopen_required) ;;
     *) echo "verdict has invalid value: $vval" >&2; errs=$((errs+1)) ;;
   esac
+  # evaluated_by must be master (enhance.md §12: Subagent cannot produce a
+  # final success verdict; only the Master judges). Guardian was removed in
+  # the goal-driven refactor, so master is the only valid author.
+  local eby
+  eby="$(yq e '.evaluated_by // ""' "$vf")"
+  if [ -n "$eby" ] && [ "$eby" != "master" ]; then
+    echo "verdict evaluated_by must be 'master' (got '$eby'); Subagent cannot produce a final verdict" >&2
+    errs=$((errs+1))
+  fi
   [ "$errs" -eq 0 ]
 }
 

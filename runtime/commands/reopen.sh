@@ -16,7 +16,7 @@ yq e -i ".reopen_reason = \"$reason\"" "$state_file"
 # basis before execution should resume.
 yq e -i ".contract_hash = \"\"" "$state_file"
 yq e -i ".evidence_hash = \"\"" "$state_file"
-# Reset current_work_unit and bump state to reopen_required (transition allowed).
+# Move state to reopen_required (transition allowed from anywhere).
 cur="$(yq e '.status' "$state_file")"
 case "$cur" in
   reopen_required) : ;;

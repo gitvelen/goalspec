@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Test: goalspec reopen clears the recorded contract/evidence hashes and sets
-#       status=reopen_required, so downstream next sees staleness and is blocked
-#       (old evidence/verdict can no longer be used to advance). reopen.sh exits
-#       the lifecycle via reopen_required -> draft/intake_reviewed.
+#       status=reopen_required, so downstream run/judge/complete see staleness
+#       and are blocked (old evidence/verdict can no longer be used to advance).
+#       reopen.sh exits the lifecycle via reopen_required -> spec_drafting.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 fresh_initialized_repo goalc-29

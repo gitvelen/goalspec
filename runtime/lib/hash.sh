@@ -38,6 +38,13 @@ goalspec_goal_hash() {
   goalspec_hash_file "$GOALSPEC_ROOT/active/goal.md"
 }
 
+# Hash of the frozen Goal artifact (goal.yaml), generated at freeze. Bound in
+# state.goal_artifact_hash and checked by run/status so post-freeze tampering of
+# the frozen Goal artifact is detected (parallel to criteria/constraints hashes).
+goalspec_goal_artifact_hash() {
+  goalspec_hash_file "$GOALSPEC_ROOT/active/goal.yaml"
+}
+
 goalspec_contract_hash() {
   local cf="$GOALSPEC_ROOT/active/contract.yaml"
   [ -f "$cf" ] || { echo ""; return 1; }
@@ -88,4 +95,52 @@ goalspec_intake_package_hash() {
   goalspec_hash_files \
     "$GOALSPEC_ROOT/active/intake-capture.md" \
     "$GOALSPEC_ROOT/active/constraint-suggestions.yaml"
+}
+
+goalspec_verdict_hash() {
+  goalspec_hash_file "$GOALSPEC_ROOT/active/verdict.yaml"
+}
+
+goalspec_changed_files_fingerprint() {
+  local base="$1" f full sha
+  goalspec_git_changed_files "$base" | sort -u | while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    case "$f" in
+      .goalspec/active/close-package.yaml|.goalspec/active/close-package.md|.goalspec/active/state.yaml) continue ;;
+    esac
+    full="$PROJECT_ROOT/$f"
+    if [ -f "$full" ]; then
+      sha="$(sha256sum "$full" | awk '{print $1}')"
+      printf '%s\t%s\n' "$f" "$sha"
+    else
+      printf '%s\t%s\n' "$f" "deleted"
+    fi
+  done
+}
+
+goalspec_changed_files_hash() {
+  local base fp h
+  base="$(goalspec_state_get 'git.base_revision' 2>/dev/null || echo "")"
+  fp="$(goalspec_changed_files_fingerprint "$base")"
+  if [ -z "$fp" ]; then echo "sha256:empty"; return 0; fi
+  h="$(printf '%s' "$fp" | sha256sum | awk '{print $1}')"
+  echo "sha256:${h}"
+}
+
+goalspec_suggested_delivery_hash() {
+  local cpf="$GOALSPEC_ROOT/active/close-package.yaml"
+  [ -f "$cpf" ] || { echo ""; return 1; }
+  local stripped h
+  stripped="$(yq e '{"commit": .commit, "pr": .pr}' "$cpf")"
+  h="$(printf '%s' "$stripped" | sha256sum | awk '{print $1}')"
+  echo "sha256:${h}"
+}
+
+goalspec_close_package_hash() {
+  local cpf="$GOALSPEC_ROOT/active/close-package.yaml"
+  [ -f "$cpf" ] || { echo ""; return 1; }
+  local stripped h
+  stripped="$(yq e 'del(.hashes.close_package_hash)' "$cpf")"
+  h="$(printf '%s' "$stripped" | sha256sum | awk '{print $1}')"
+  echo "sha256:${h}"
 }

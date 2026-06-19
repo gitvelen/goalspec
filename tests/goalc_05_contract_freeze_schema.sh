@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# GOALC #5: contract missing criteria / coverage gap / WU without criteria /
-#            allowed paths too wide without approval -> freeze fails.
+# GOALC #5: contract missing criteria / no final criterion / vague or
+#            implementation-step statements -> freeze fails.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 fresh_initialized_repo goalc-05
@@ -32,17 +32,9 @@ run_freeze_should_fail() {
 cat > "$REPO/.goalspec/active/contract.yaml" <<'YML'
 status: draft
 criteria: []
-work_units:
-  - id: WU-001
-    goal: x
-    criteria_refs: [CRIT-X]
-    allowed_paths: ["src/**"]
 evidence_requirements:
   - id: EVIDREQ-001
     runtime_boundary: browser
-coverage_map:
-  - goal_ref: x
-    criteria_refs: [CRIT-X]
 YML
 run_freeze_should_fail "no criteria"
 
@@ -53,73 +45,49 @@ criteria:
   - id: CRIT-001
     priority: P0
     required_for_completion: true
-    statement: foo
-work_units:
-  - id: WU-001
-    goal: x
-    criteria_refs: [CRIT-001]
-    allowed_paths: ["src/**"]
+    statement: behavior A observed
 evidence_requirements:
   - id: EVIDREQ-001
     runtime_boundary: browser
-coverage_map:
-  - goal_ref: x
-    criteria_refs: [CRIT-001]
 YML
 run_freeze_should_fail "no final criteria"
 
-# Case C: WU without criteria_refs
+# Case C: vague statement (fails the Clear lint, enhance.md §6)
 cat > "$REPO/.goalspec/active/contract.yaml" <<'YML'
 status: draft
 criteria:
   - id: CRIT-001
     priority: P0
     required_for_completion: true
-    statement: foo
+    statement: the behavior is good and complete
   - id: CRIT-FINAL-001
     priority: P0
     required_for_completion: true
     final: true
-    statement: bar
-work_units:
-  - id: WU-001
-    goal: x
-    criteria_refs: []
-    allowed_paths: ["src/**"]
+    statement: final integration pass
 evidence_requirements:
   - id: EVIDREQ-001
     runtime_boundary: browser
-coverage_map:
-  - goal_ref: x
-    criteria_refs: [CRIT-001]
 YML
-run_freeze_should_fail "WU without criteria_refs"
+run_freeze_should_fail "vague statement"
 
-# Case D: WU without allowed_paths
+# Case D: statement encodes an implementation step (fails the Minimal lint)
 cat > "$REPO/.goalspec/active/contract.yaml" <<'YML'
 status: draft
 criteria:
   - id: CRIT-001
     priority: P0
     required_for_completion: true
-    statement: foo
+    statement: implement the snake module
   - id: CRIT-FINAL-001
     priority: P0
     required_for_completion: true
     final: true
-    statement: bar
-work_units:
-  - id: WU-001
-    goal: x
-    criteria_refs: [CRIT-001]
-    allowed_paths: []
+    statement: final integration pass
 evidence_requirements:
   - id: EVIDREQ-001
     runtime_boundary: browser
-coverage_map:
-  - goal_ref: x
-    criteria_refs: [CRIT-001]
 YML
-run_freeze_should_fail "WU without allowed_paths"
+run_freeze_should_fail "implementation-step statement"
 
 [ "$TESTS_FAIL" -eq 0 ]

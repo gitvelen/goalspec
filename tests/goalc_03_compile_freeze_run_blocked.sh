@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GOALC #3: without intake review pass / goal approval, compile/freeze/next blocked.
+# GOALC #3: without intake review pass / goal approval, compile/freeze/run blocked.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 fresh_initialized_repo goalc-03
@@ -42,11 +42,11 @@ else
   ok "freeze blocked without contract review+approval"
 fi
 
-# next on non-frozen contract -> blocked
-if "$REPO_GS" next >/dev/null 2>&1; then
-  bad "next succeeded before freeze"
+# run on non-frozen contract -> blocked (no frozen Goal-Driven Prompt)
+if "$REPO_GS" run >/dev/null 2>&1; then
+  bad "run succeeded before freeze"
 else
-  ok "next blocked before freeze"
+  ok "run blocked before freeze"
 fi
 
 [ "$TESTS_FAIL" -eq 0 ]

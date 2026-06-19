@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# evidence.sh — template / check evidence entries.
+# evidence.sh — template / check evidence entries (goal-driven: evidence binds
+# to Criteria; enhance.md §12).
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)/load.sh"
 
@@ -9,21 +10,19 @@ cf="$GOALSPEC_ROOT/active/contract.yaml"
 
 case "$sub" in
   template)
-    wu="${1:-}"
-    [ -n "$wu" ] || { echo "usage: goalspec evidence template <wu_id>" >&2; exit 2; }
-    # Pull evidence_requirement_refs for this WU.
-    ereqs="$(yq e ".work_units[] | select(.id == \"$wu\") | .evidence_requirement_refs.[]" "$cf" 2>/dev/null)"
-    crits="$(yq e ".work_units[] | select(.id == \"$wu\") | .criteria_refs.[]" "$cf" 2>/dev/null)"
+    crit="${1:-}"
+    [ -n "$crit" ] || { echo "usage: goalspec evidence template <criteria_id>" >&2; exit 2; }
+    # Pull evidence_requirement_refs for this criterion.
+    ereqs="$(yq e ".criteria[] | select(.id == \"$crit\") | .evidence_requirement_refs.[]" "$cf" 2>/dev/null)"
     chash="$(goalspec_contract_hash)"
     n="$(yq e '.evidence | length' "$ef" 2>/dev/null || echo 0)"
     eid="EV-$(printf '%03d' $((n+1)))"
     cat <<EOF
-# Evidence entry (executor fills in command, exit_code, artifact_paths).
+# Evidence entry (Subagent fills in command, exit_code, artifact_paths).
 # Append to .goalspec/active/evidence.yaml under 'evidence:'.
 - id: $eid
   contract_hash: "$chash"
-  work_unit_ref: "$wu"
-  criteria_refs: [$(echo "$crits" | sed 's/^/"/; s/$/",/' | tr -d '\n' | sed 's/,$//')]
+  criteria_refs: ["$crit"]
   evidence_requirement_refs: [$(echo "$ereqs" | sed 's/^/"/; s/$/",/' | tr -d '\n' | sed 's/,$//')]
   command: "<command that produced the fact>"
   exit_code: 0
@@ -33,7 +32,7 @@ case "$sub" in
   persistence: memory
   completion_level: integrated_runtime
   reproducible: true
-  produced_by: executor
+  produced_by: subagent
   produced_at: "$(goalspec_now)"
   residual_risk:
     level: none

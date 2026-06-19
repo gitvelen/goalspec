@@ -1,6 +1,7 @@
 active_goal_id: null
-status: draft
+status: no_goal
 goal_hash: null
+goal_artifact_hash: null
 contract_hash: null
 criteria_hash: null
 constraints_hash: null
@@ -12,10 +13,7 @@ memory_patch_hash: null
 intake_capture_hash: null
 intake_package_hash: null
 constraint_suggestions_applied_hash: null
-current_work_unit: null
-iteration: 0
-max_iterations: 6
-max_failures_per_work_unit: 2
+close_package_hash: null
 blocked_reason: null
 reopen_reason: null
 intake_session:
@@ -26,3 +24,14 @@ approvals: []
 git:
   base_revision: null
   current_revision: null
+close:
+  status: not_started
+  history_version: null
+  main_commit: null
+  metadata_commit: null
+  branch: null
+  base_branch: null
+  remote: null
+  pr_url: null
+  failed_at: null
+  failure_reason: null

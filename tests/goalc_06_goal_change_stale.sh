@@ -33,17 +33,7 @@ ok "reached freeze"
 # Tamper with goal.md
 echo "## new section added" >> "$REPO/.goalspec/active/goal.md"
 
-# next should be blocked because goal change propagates staleness via intake review hash.
-# Specifically, after goal.md change, intake review is stale; compile refuses to re-issue.
-# We test that re-compile refuses (intake stale) and re-freeze refuses.
-if "$REPO_GS" compile >/dev/null 2>&1; then
-  # compile doesn't directly check intake staleness on re-entry; test freeze instead.
-  :
-fi
-
-# Force compile to advance, then try freeze — should fail because intake review stale.
-# (compile sets state to contract_draft on first run; subsequent runs require status intake_reviewed.)
-# We test the freeze path: goal changed -> intake stale -> freeze must fail.
+# goal.md change makes the intake review stale; freeze must refuse without re-review.
 if "$REPO_GS" freeze >/dev/null 2>&1; then
   bad "freeze succeeded after goal.md change without re-review"
 else

@@ -17,6 +17,13 @@ goalspec_stale_goal_changed() {
   [ -n "$cur_rec" ] && [ "$cur_rec" != "null" ] && [ "$cur" != "$cur_rec" ]
 }
 
+goalspec_stale_goal_artifact_changed() {
+  local cur cur_rec
+  cur="$(goalspec_goal_artifact_hash)"
+  cur_rec="$(goalspec_state_get 'goal_artifact_hash')"
+  [ -n "$cur_rec" ] && [ "$cur_rec" != "null" ] && [ "$cur" != "$cur_rec" ]
+}
+
 goalspec_stale_contract_changed() {
   local cur cur_rec
   cur="$(goalspec_contract_hash)"
@@ -124,6 +131,9 @@ goalspec_stale_blockers() {
   local out=""
   if goalspec_stale_goal_changed; then
     out="${out}goal_changed "
+  fi
+  if goalspec_stale_goal_artifact_changed; then
+    out="${out}goal_artifact_changed "
   fi
   if goalspec_stale_contract_changed; then
     out="${out}contract_changed "

@@ -11,7 +11,7 @@ assert_managed_ai_guide() {
   /bin/grep -q 'constraint-suggestions.yaml' "$file" || bad "$file missing constraint suggestions flow"
   /bin/grep -q 'approve intake-package' "$file" || bad "$file missing intake package approval"
   /bin/grep -q 'intake apply-suggestions' "$file" || bad "$file missing apply suggestions command"
-  /bin/grep -q 'goalspec complete' "$file" || bad "$file missing completion command"
+  /bin/grep -q 'goalspec close' "$file" || bad "$file missing close command"
 }
 
 fresh_initialized_repo goalc-01

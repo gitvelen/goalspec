@@ -3,10 +3,7 @@ goal_hash: null
 project_memory_hash: null
 contract_hash: null
 criteria: []
-work_units: []
 evidence_requirements: []
-coverage_map: []
-coverage_exceptions: []
 constraints: []
 required_regressions: []
 allowed_paths: []

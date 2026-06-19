@@ -45,6 +45,7 @@ goalspec_prompt_write_frozen_artifacts() {
   } > "$GOALSPEC_ROOT/active/constraints.yaml"
 
   yq e -i ".goal_hash = \"$goal_hash\"" "$sf"
+  yq e -i ".goal_artifact_hash = \"$(goalspec_goal_artifact_hash)\"" "$sf"
   yq e -i ".criteria_hash = \"$(goalspec_criteria_hash)\"" "$sf"
   yq e -i ".constraints_hash = \"$(goalspec_constraints_hash)\"" "$sf"
   yq e -i ".confirmed_at = \"$confirmed_at\"" "$sf"
@@ -105,7 +106,7 @@ Internal tasks, attempts, execution scopes, work units, test runs, and implement
 Criteria satisfaction is the only success condition.
 Subagent cannot declare final success.
 The Master Agent must strictly evaluate progress against the frozen Criteria.
-The Master Agent or Guardian may produce final verdicts; the Subagent may only produce evidence.
+The Master Agent produces final verdicts; the Subagent may only produce evidence.
 Evidence must bind to Criteria and may bind to internal attempts for traceability.
 During execution, do not modify Goal, Criteria, or Constraints.
 If Goal, Criteria, or Constraints appear wrong, insufficient, or impossible under the Constraints, stop and request \`/goalspec reopen <reason>\`.

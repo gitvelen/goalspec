@@ -105,7 +105,7 @@ goalspec_update_existing() {
   chmod +x "$dest_goalspec/goalspec"
 
   mkdir -p "$dest_goalspec/history" "$dest_goalspec/artifacts" "$dest_goalspec/artifacts/intake" "$dest_goalspec/active" "$dest_goalspec/project"
-  for f in intake-sources.yaml intake-conversation.md intake-capture.md constraint-suggestions.yaml goal.yaml criteria.yaml constraints.yaml goal-driven-prompt.md; do
+  for f in intake-sources.yaml intake-conversation.md intake-capture.md constraint-suggestions.yaml goal.yaml criteria.yaml constraints.yaml goal-driven-prompt.md close-package.yaml close-package.md; do
     if [ ! -f "$dest_goalspec/active/$f" ]; then
       cp "$SRC_ROOT/runtime/templates/active/$f" "$dest_goalspec/active/$f"
     fi
@@ -115,10 +115,22 @@ goalspec_update_existing() {
       .intake_capture_hash = (.intake_capture_hash // null) |
       .intake_package_hash = (.intake_package_hash // null) |
       .constraint_suggestions_applied_hash = (.constraint_suggestions_applied_hash // null) |
+      .close_package_hash = (.close_package_hash // null) |
       .intake_session = (.intake_session // {"status":"not_started","started_at":null,"ended_at":null}) |
       .intake_session.status = (.intake_session.status // "not_started") |
       .intake_session.started_at = (.intake_session.started_at // null) |
-      .intake_session.ended_at = (.intake_session.ended_at // null)
+      .intake_session.ended_at = (.intake_session.ended_at // null) |
+      .close = (.close // {"status":"not_started","history_version":null,"main_commit":null,"metadata_commit":null,"branch":null,"base_branch":null,"remote":null,"pr_url":null,"failed_at":null,"failure_reason":null}) |
+      .close.status = (.close.status // "not_started") |
+      .close.history_version = (.close.history_version // null) |
+      .close.main_commit = (.close.main_commit // null) |
+      .close.metadata_commit = (.close.metadata_commit // null) |
+      .close.branch = (.close.branch // null) |
+      .close.base_branch = (.close.base_branch // null) |
+      .close.remote = (.close.remote // null) |
+      .close.pr_url = (.close.pr_url // null) |
+      .close.failed_at = (.close.failed_at // null) |
+      .close.failure_reason = (.close.failure_reason // null)
     ' "$dest_goalspec/active/state.yaml"
   else
     cp "$SRC_ROOT/runtime/templates/active/state.yaml" "$dest_goalspec/active/state.yaml"

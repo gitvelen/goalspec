@@ -29,11 +29,11 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# Block if there's already an active, not-completed goal.
+# Block if there's already an active, not-closed goal.
 if [ -f "$state_file" ]; then
   cur_status="$(yq e '.status' "$state_file")"
-  if [ "$cur_status" != "completed" ] && [ -n "$(yq e '.active_goal_id // ""' "$state_file")" ]; then
-    echo "goalspec new-goal: an active goal already exists (status=$cur_status). Complete or reopen it first." >&2
+  if [ "$cur_status" != "closed" ] && [ "$cur_status" != "completed" ] && [ -n "$(yq e '.active_goal_id // ""' "$state_file")" ]; then
+    echo "goalspec new-goal: an active goal already exists (status=$cur_status). Close or reopen it first." >&2
     exit 1
   fi
 fi
@@ -43,7 +43,7 @@ goal_id="$(goalspec_new_goal_id)"
 # Reset active state and goal.md from templates.
 cp "$GOALSPEC_ROOT/runtime/templates/active/state.yaml" "$state_file"
 yq e -i ".active_goal_id = \"$goal_id\"" "$state_file"
-yq e -i ".status = \"draft\"" "$state_file"
+yq e -i ".status = \"spec_drafting\"" "$state_file"
 yq e -i ".git.base_revision = \"$(goalspec_git_head)\"" "$state_file"
 yq e -i ".git.current_revision = \"$(goalspec_git_head)\"" "$state_file"
 cp "$GOALSPEC_ROOT/runtime/templates/active/intake-sources.yaml" "$GOALSPEC_ROOT/active/intake-sources.yaml"
@@ -98,6 +98,6 @@ fi
 yq e -i ".goal_hash = \"$(goalspec_goal_hash)\"" "$state_file"
 
 echo "new active goal: $goal_id"
-echo "  status: draft"
+echo "  status: spec_drafting"
 echo "  goal.md: $GOALSPEC_ROOT/active/goal.md"
 echo "next: fill in active/goal.md (intake agent), then 'goalspec review prompt intake'"

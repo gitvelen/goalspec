@@ -1,1 +1,7 @@
+# evidence.yaml — observable facts bound to Criteria (enhance.md §12).
+# The Subagent records evidence; it never declares final success. Each entry:
+#   - id: EV-001
+#   - contract_hash, criteria_refs, evidence_requirement_refs
+#   - command, exit_code, artifact_paths
+#   - produced_by: subagent
 evidence: []

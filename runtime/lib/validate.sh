@@ -71,13 +71,12 @@ goalspec_validate_contract() {
     goalspec_validate_record error contract parse "contract.yaml not valid YAML or has no status field"
     return
   fi
-  # A pristine draft (criteria AND work_units both empty) is just the starting
-  # template placeholder — nothing compiled yet, so the freeze schema does not
-  # apply. Only validate once the contract has been populated.
-  local nc nw
+  # A pristine draft (no criteria yet) is just the starting template
+  # placeholder — nothing compiled yet, so the freeze schema does not apply.
+  # Only validate once the contract has been populated.
+  local nc
   nc="$(yq e '.criteria | length' "$cf" 2>/dev/null || echo 0)"
-  nw="$(yq e '.work_units | length' "$cf" 2>/dev/null || echo 0)"
-  if [ "${nc:-0}" -eq 0 ] && [ "${nw:-0}" -eq 0 ]; then
+  if [ "${nc:-0}" -eq 0 ]; then
     return
   fi
   goalspec_validate_run_check error contract schema goalspec_schema_contract_freeze
@@ -116,8 +115,8 @@ goalspec_validate_verdict() {
   n="$(yq e '.verdicts | length' "$vf" 2>/dev/null || echo 0)"
   i=0
   while [ "$i" -lt "$n" ]; do
-    local missing="" f v vval
-    for f in work_unit_ref criteria_ref verdict context reason; do
+    local missing="" f v vval eby
+    for f in criteria_ref verdict context reason evaluated_by; do
       v="$(yq e ".verdicts[$i].${f} // \"\"" "$vf")"
       { [ -z "$v" ] || [ "$v" = "null" ]; } && missing="${missing}${f} "
     done
@@ -127,6 +126,11 @@ goalspec_validate_verdict() {
       pass|fail|insufficient|blocked|stale|reopen_required|"") ;;
       *) goalspec_validate_record error verdict schema "verdict[$i] invalid verdict value: $vval" ;;
     esac
+    # evaluated_by must be master (enhance.md §12: Subagent cannot author a
+    # final verdict). Guardian was removed, so master is the only valid author.
+    eby="$(yq e ".verdicts[$i].evaluated_by // \"\"" "$vf")"
+    { [ -n "$eby" ] && [ "$eby" != "null" ] && [ "$eby" != "master" ]; } && \
+      goalspec_validate_record error verdict schema "verdict[$i] evaluated_by must be 'master' (got '$eby'); Subagent cannot produce a final verdict"
     i=$((i+1))
   done
 }
@@ -162,37 +166,11 @@ goalspec_validate_integrity() {
   local vf="$GOALSPEC_ROOT/active/verdict.yaml"
   [ -f "$cf" ] || return
 
-  local crit_ids wu_ids evidreq_ids
+  local crit_ids evidreq_ids
   crit_ids="$(yq e '.criteria[].id' "$cf" 2>/dev/null)"
-  wu_ids="$(yq e '.work_units[].id' "$cf" 2>/dev/null)"
   evidreq_ids="$(yq e '.evidence_requirements[].id' "$cf" 2>/dev/null)"
 
   local n i id r
-  # work_units: criteria_refs + evidence_requirement_refs resolve
-  n="$(yq e '.work_units | length' "$cf" 2>/dev/null || echo 0)"; i=0
-  while [ "$i" -lt "$n" ]; do
-    id="$(yq e ".work_units[$i].id" "$cf")"
-    for r in $(yq e ".work_units[$i].criteria_refs[]" "$cf" 2>/dev/null); do
-      goalspec_validate_in_list "$r" "$crit_ids" || \
-        goalspec_validate_record error contract integrity "work_unit ${id}: criteria_ref '$r' not found in criteria"
-    done
-    for r in $(yq e ".work_units[$i].evidence_requirement_refs[]" "$cf" 2>/dev/null); do
-      goalspec_validate_in_list "$r" "$evidreq_ids" || \
-        goalspec_validate_record error contract integrity "work_unit ${id}: evidence_requirement_ref '$r' not found in evidence_requirements"
-    done
-    i=$((i+1))
-  done
-
-  # coverage_map: criteria_refs resolve
-  n="$(yq e '.coverage_map | length' "$cf" 2>/dev/null || echo 0)"; i=0
-  while [ "$i" -lt "$n" ]; do
-    for r in $(yq e ".coverage_map[$i].criteria_refs[]" "$cf" 2>/dev/null); do
-      goalspec_validate_in_list "$r" "$crit_ids" || \
-        goalspec_validate_record error contract integrity "coverage_map[$i]: criteria_ref '$r' not found in criteria"
-    done
-    i=$((i+1))
-  done
-
   # criteria: evidence_requirement_refs resolve
   n="$(yq e '.criteria | length' "$cf" 2>/dev/null || echo 0)"; i=0
   while [ "$i" -lt "$n" ]; do
@@ -204,15 +182,12 @@ goalspec_validate_integrity() {
     i=$((i+1))
   done
 
-  # verdicts: work_unit_ref / criteria_ref / evidence_refs resolve
+  # verdicts: criteria_ref / evidence_refs resolve
   if [ -f "$vf" ]; then
     n="$(yq e '.verdicts | length' "$vf" 2>/dev/null || echo 0)"; i=0
     while [ "$i" -lt "$n" ]; do
-      local wu cr
-      wu="$(yq e ".verdicts[$i].work_unit_ref // \"\"" "$vf")"
+      local cr
       cr="$(yq e ".verdicts[$i].criteria_ref // \"\"" "$vf")"
-      goalspec_validate_in_list "$wu" "$wu_ids" || \
-        goalspec_validate_record error verdict integrity "verdict[$i] work_unit_ref '$wu' not found in work_units"
       goalspec_validate_in_list "$cr" "$crit_ids" || \
         goalspec_validate_record error verdict integrity "verdict[$i] criteria_ref '$cr' not found in criteria"
       for r in $(yq e ".verdicts[$i].evidence_refs[]" "$vf" 2>/dev/null); do
@@ -226,18 +201,20 @@ goalspec_validate_integrity() {
   # orphan evidence_requirements (warning): defined but referenced by nothing
   if [ -n "$evidreq_ids" ]; then
     local referenced er
-    referenced="$(yq e '[.work_units[].evidence_requirement_refs[], .criteria[].evidence_requirement_refs[]]' "$cf" 2>/dev/null | yq e '.[]' - 2>/dev/null)"
+    referenced="$(yq e '[.criteria[].evidence_requirement_refs[]]' "$cf" 2>/dev/null | yq e '.[]' - 2>/dev/null)"
     for er in $evidreq_ids; do
       goalspec_validate_in_list "$er" "$referenced" || \
-        goalspec_validate_record warning contract integrity "evidence_requirement '$er' not referenced by any work_unit or criteria"
+        goalspec_validate_record warning contract integrity "evidence_requirement '$er' not referenced by any criteria"
     done
   fi
 }
 
-# --- completion-readiness preview (warnings, only meaningful mid-execution) --
-# Mirrors complete.sh's gate sequence as informational warnings so you can see
-# what still blocks `complete` without attempting it. Runs only once execution
-# has begun (contract frozen + at least one verdict recorded) to avoid noise.
+# --- close-readiness preview (warnings, only meaningful mid-execution) --
+# Mirrors the close completion gate as informational warnings so you can see
+# what still blocks `run`/`complete`/`close` without attempting them. Runs only
+# once execution has begun (contract frozen + at least one verdict recorded) to
+# avoid noise. V2: memory-patch approval is no longer a separate gate — the
+# close package hash binds the memory_patch_hash, so close is the confirmation.
 goalspec_validate_completion_preview() {
   local cf="$GOALSPEC_ROOT/active/contract.yaml"
   local vf="$GOALSPEC_ROOT/active/verdict.yaml"
@@ -251,21 +228,17 @@ goalspec_validate_completion_preview() {
   cur="$(goalspec_contract_hash)"
   rec="$(yq e '.contract_hash // ""' "$sf")"
   if [ -n "$rec" ] && [ "$rec" != "null" ] && [ "$cur" != "$rec" ]; then
-    goalspec_validate_record warning completion contract_hash "contract changed since freeze; complete will require re-freeze"
+    goalspec_validate_record warning completion contract_hash "contract changed since freeze; close will require re-freeze"
   fi
 
   local qf="$GOALSPEC_ROOT/active/questions.yaml"
   if [ -f "$qf" ]; then
     local nb; nb="$(yq e '[.questions[] | select(.blocking == true and .status != "resolved")] | length' "$qf" 2>/dev/null || echo 0)"
-    [ "${nb:-0}" -eq 0 ] || goalspec_validate_record warning completion blocking_questions "${nb} blocking question(s) unresolved; complete will fail"
+    [ "${nb:-0}" -eq 0 ] || goalspec_validate_record warning completion blocking_questions "${nb} blocking question(s) unresolved; close will fail"
   fi
 
   local crit_ids c v missing="" bad=""
-  crit_ids="$(printf '%s\n%s\n%s\n' \
-    "$(yq e '.criteria[] | select(.required_for_completion == true) | .id' "$cf" 2>/dev/null)" \
-    "$(yq e '.criteria[] | select(.final == true) | .id' "$cf" 2>/dev/null)" \
-    "$(yq e '.criteria[] | select(.priority == "P0") | .id' "$cf" 2>/dev/null)" \
-    | sort -u | grep -v '^$' || true)"
+  crit_ids="$(yq e '.criteria[].id' "$cf" 2>/dev/null)"
   while IFS= read -r c; do
     [ -z "$c" ] && continue
     v="$(yq e "[.verdicts[] | select(.criteria_ref == \"$c\")] | .[-1].verdict // \"\"" "$vf" 2>/dev/null)"
@@ -279,15 +252,8 @@ goalspec_validate_completion_preview() {
   [ -z "$bad" ] || goalspec_validate_record warning completion verdicts "non-pass verdict on required/final/hard: $bad"
 
   local mpf="$GOALSPEC_ROOT/active/memory-patch.yaml"
-  if [ ! -f "$mpf" ] || [ "$(yq e '.patches | length' "$mpf" 2>/dev/null || echo 0)" -lt 1 ]; then
-    goalspec_validate_record warning completion memory_patch "no memory-patch entries; complete will fail (guardian proposes, human approves)"
-  else
-    if ! yq e '[.approvals[] | select(.kind == "memory-patch")] | length' "$sf" 2>/dev/null | grep -q '^[1-9]'; then
-      goalspec_validate_record warning completion memory_patch "memory-patch not human-approved; complete will fail"
-    fi
-    if goalspec_approval_stale memory-patch; then
-      goalspec_validate_record warning completion memory_patch "memory-patch approval stale; complete will fail"
-    fi
+  if [ ! -f "$mpf" ]; then
+    goalspec_validate_record warning completion memory_patch "memory-patch.yaml missing; close will fail (Master proposes, close confirms)"
   fi
 }
 

@@ -64,10 +64,10 @@ yq e -i ".goal_hash = \"$(goalspec_goal_hash)\"" "$cf"
 yq e -i ".project_memory_hash = \"$(goalspec_project_memory_hash)\"" "$cf"
 yq e -i ".status = \"draft\"" "$cf"
 
-# Advance state if appropriate.
+# Advance/confirm state: compiling is part of spec drafting (enhance.md §4).
 case "$status" in
-  intake_reviewed) goalspec_state_set_status contract_draft ;;
-  contract_draft) : ;;
+  spec_drafting) : ;;
+  awaiting_human_confirmation) goalspec_state_set_status spec_drafting ;;
   *) echo "compile: unexpected state $status" >&2; exit 1 ;;
 esac
 
@@ -75,12 +75,10 @@ cat <<EOF
 draft contract written: $cf
 
 The compiler agent should now edit $cf to fill in:
-  - criteria (incl. one final: true)
-  - work_units (behavior slices, each with criteria_refs, allowed_paths,
-    forbidden_paths, evidence_requirement_refs)
-  - coverage_map (every core goal scenario + must_not_happen)
+  - criteria (incl. one final: true; each may carry evidence_requirement_refs)
   - evidence_requirements
   - constraints (active project + confirmed goal + confirmed compile)
+  - allowed_paths / forbidden_paths (the execution scope boundary)
   - required_regressions (from project/regression-suite.yaml)
 
 When done: 'goalspec review prompt contract', apply a passing contract review,

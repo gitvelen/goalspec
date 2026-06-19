@@ -22,7 +22,7 @@ to_frozen() {
   "$REPO_GS" new-goal "test" >/dev/null
   make_minimal_goal_md "$REPO/.goalspec/active/goal.md"
   approve_intake_and_goal
-  compile_to_contract_reviewed
+  compile_to_awaiting_confirmation
   do_freeze
 }
 
@@ -47,7 +47,7 @@ if contains "$out" "missing section: Success Model"; then ok "reports missing Su
 # 4. Dangling criteria_ref: cross-file integrity is reported ONLY under --strict.
 fresh_initialized_repo goalc-28-dangle
 to_frozen
-yq e -i '.work_units[0].criteria_refs = ["CRIT-NOPE"]' "$REPO/.goalspec/active/contract.yaml"
+yq e -i '.verdicts += [{"criteria_ref":"CRIT-NOPE","verdict":"pass","context":"fresh","reason":"dangle","evaluated_by":"master"}]' "$REPO/.goalspec/active/verdict.yaml"
 if "$REPO_GS" validate >/dev/null 2>&1; then ok "non-strict ignores dangling ref (exit 0)"; else bad "non-strict should ignore dangling ref"; fi
 out="$("$REPO_GS" validate 2>&1)"
 if contains "$out" "CRIT-NOPE"; then bad "non-strict leaked integrity finding"; else ok "non-strict hides dangling ref"; fi
@@ -59,7 +59,7 @@ if contains "$out" "criteria_ref 'CRIT-NOPE' not found"; then ok "strict reports
 fresh_initialized_repo goalc-28-multi
 to_frozen
 sed -i '/## 3. Success Model/d' "$REPO/.goalspec/active/goal.md"
-yq e -i '.work_units[0].criteria_refs = ["CRIT-NOPE"]' "$REPO/.goalspec/active/contract.yaml"
+yq e -i '.verdicts += [{"criteria_ref":"CRIT-NOPE","verdict":"pass","context":"fresh","reason":"dangle","evaluated_by":"master"}]' "$REPO/.goalspec/active/verdict.yaml"
 out="$("$REPO_GS" validate --strict 2>&1)"
 if contains "$out" "Success Model"; then ok "collect-all surfaces goal issue"; else bad "collect-all missed goal issue"; fi
 if contains "$out" "CRIT-NOPE"; then ok "collect-all surfaces integrity issue"; else bad "collect-all missed integrity issue"; fi
@@ -82,7 +82,7 @@ jc="$("$REPO_GS" validate --json 2>/dev/null)"
 #    does not drag in goal/state checks.
 fresh_initialized_repo goalc-28-single
 to_frozen
-yq e -i '.work_units[0].criteria_refs = ["CRIT-NOPE"]' "$REPO/.goalspec/active/contract.yaml"
+yq e -i '.verdicts += [{"criteria_ref":"CRIT-NOPE","verdict":"pass","context":"fresh","reason":"dangle","evaluated_by":"master"}]' "$REPO/.goalspec/active/verdict.yaml"
 sout="$("$REPO_GS" validate contract --strict 2>&1)"
 if contains "$sout" "CRIT-NOPE"; then ok "single-target contract --strict reports ref"; else bad "single-target missed ref"; fi
 if contains "$sout" "Success Model"; then bad "single-target leaked unrelated goal check"; else ok "single-target scoped to contract only"; fi

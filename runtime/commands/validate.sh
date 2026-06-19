@@ -30,7 +30,7 @@ Targets (default: all):
 
 Flags:
   --strict   also run cross-file reference integrity (dangling criteria /
-             evidence / work_unit refs) and treat warnings as errors
+             evidence refs) and treat warnings as errors
   --json     machine-readable output (CI-friendly): {ok,errors,warnings,findings}
 EOF
 }

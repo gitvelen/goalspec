@@ -55,6 +55,10 @@ goalspec_path_forbidden() {
 }
 
 # scope-check command body. Returns 0 if all good; prints blockers.
+# Goal-driven model (enhance.md §7/§13): scope is the Constraints boundary.
+# A changed business file must match a contract-level allowed_paths pattern
+# and must not match any contract-level forbidden_paths pattern. There are no
+# per-work-unit scopes.
 goalspec_scope_check_run() {
   local base files errs=0
   base="$(goalspec_state_get 'git.base_revision')"
@@ -68,61 +72,30 @@ goalspec_scope_check_run() {
     return 1
   fi
 
-  # Build WU id -> allowed/forbidden tables.
-  local n_wu idx wu_id
-  n_wu="$(yq e '.work_units | length' "$cf" 2>/dev/null || echo "")"
-  if [ -z "$n_wu" ]; then
-    echo "scope-check: contract.yaml work_units cannot be parsed" >&2
-    return 1
-  fi
-  declare -A WU_ALLOWED
-  declare -A WU_FORBIDDEN
-  declare -A WU_PASSED
-  idx=0
-  while [ "$idx" -lt "$n_wu" ]; do
-    wu_id="$(yq e ".work_units[$idx].id" "$cf")"
-    WU_ALLOWED[$wu_id]="$(yq e -o=t ".work_units[$idx].allowed_paths.[]" "$cf" | tr '\n' '|')"
-    WU_FORBIDDEN[$wu_id]="$(yq e -o=t ".work_units[$idx].forbidden_paths.[]" "$cf" | tr '\n' '|')"
-    idx=$((idx+1))
-  done
+  # Contract-level allowed / forbidden path tables (the Constraints boundary).
+  local ALLOWED FORBIDDEN
+  ALLOWED="$(yq e -o=t '.allowed_paths[]' "$cf" 2>/dev/null)"
+  FORBIDDEN="$(yq e -o=t '.forbidden_paths[]' "$cf" 2>/dev/null)"
 
-  # Determine passed WUs from verdicts.
-  local vf="$GOALSPEC_ROOT/active/verdict.yaml"
-  if [ -f "$vf" ]; then
-    local n vidx wu v
-    n="$(yq e '.verdicts | length' "$vf" 2>/dev/null || echo 0)"
-    vidx=0
-    while [ "$vidx" -lt "$n" ]; do
-      wu="$(yq e ".verdicts[$vidx].work_unit_ref" "$vf")"
-      v="$(yq e ".verdicts[$vidx].verdict" "$vf")"
-      if [ "$v" = "pass" ]; then
-        WU_PASSED[$wu]=1
-      fi
-      vidx=$((vidx+1))
-    done
-  fi
-
-  # For each changed business file: must match a passed WU's allowed_paths and
-  # not match any forbidden_paths from any WU.
-  # Role context: GOALSPEC_SCOPE_ROLE=executor (default) checks the strict
-  # executor view (no touching verdict/memory-patch/etc.). =system (used by
-  # `complete` after guardian writes) relaxes those active-write checks because
-  # their integrity is enforced by hash/context in judge apply / approve.
-  local role="${GOALSPEC_SCOPE_ROLE:-executor}"
+  # Role context: GOALSPEC_SCOPE_ROLE=subagent (default) checks the strict
+  # Subagent view (no touching verdict/memory-patch/etc.). =system (used by
+  # `complete` after the Master writes) relaxes those active-write checks
+  # because their integrity is enforced by hash/context in judge apply / approve.
+  local role="${GOALSPEC_SCOPE_ROLE:-subagent}"
   local unattributed=""
   local forbidden_hits=""
   local f
   while IFS= read -r f; do
     [ -z "$f" ] && continue
-    # Global forbidden check (frozen contract / project / history).
+    # Global forbidden (frozen contract / project / history).
     # These authority files cannot be modified by anyone after freeze without
-    # an explicit reopen. (GOALC #10, §20, §26.6.)
+    # an explicit reopen.
     if [ "$contract_status" = "frozen" ]; then
       case "$f" in
         .goalspec/active/contract.yaml)
           # freeze writes contract_hash into contract.yaml itself, which makes
           # the file permanently "dirty" relative to base_revision. Distinguish
-          # that benign self-write from a real executor edit by comparing the
+          # that benign self-write from a real Subagent edit by comparing the
           # current content hash to the hash recorded at freeze time.
           local rec_chash
           rec_chash="$(goalspec_state_get 'contract_hash')"
@@ -140,10 +113,10 @@ goalspec_scope_check_run() {
           ;;
       esac
     fi
-    # Executor-only forbidden: executor must never directly write the guardian/
-    # approval authority files. (Guardian writes verdict via `judge apply`;
-    # memory-patch is approved via `approve memory-patch`.)
-    if [ "$role" = "executor" ] && [ "$contract_status" = "frozen" ]; then
+    # Subagent-only forbidden: the Subagent must never directly write the
+    # Master/approval authority files. (The Master writes verdict via
+    # `judge apply`; memory-patch is approved via `approve memory-patch`.)
+    if [ "$role" = "subagent" ] && [ "$contract_status" = "frozen" ]; then
       case "$f" in
         .goalspec/active/verdict.yaml|\
         .goalspec/active/memory-patch.yaml|\
@@ -157,47 +130,32 @@ goalspec_scope_check_run() {
     case "$f" in
       .goalspec/*) continue ;;
     esac
-    # forbidden by any WU forbidden_paths
-    local wuu hit_forbidden=0
-    for wuu in "${!WU_FORBIDDEN[@]}"; do
-      local fp="${WU_FORBIDDEN[$wuu]}"
-      local oldifs="$IFS"
-      IFS='|'
-      # shellcheck disable=SC2086
-      set -- $fp
-      IFS="$oldifs"
-      local pat
-      for pat in "$@"; do
-        [ -z "$pat" ] && continue
-        if goalspec_path_matches "$pat" "$f"; then
-          hit_forbidden=1; break
-        fi
-      done
-      [ "$hit_forbidden" = "1" ] && break
+    # forbidden by any contract forbidden_paths
+    local pat hit_forbidden=0
+    local oldifs="$IFS"
+    IFS=$'\n'
+    for pat in $FORBIDDEN; do
+      [ -z "$pat" ] && continue
+      if goalspec_path_matches "$pat" "$f"; then
+        hit_forbidden=1; break
+      fi
     done
+    IFS="$oldifs"
     if [ "$hit_forbidden" = "1" ]; then
       forbidden_hits="${forbidden_hits}$f "
       continue
     fi
-    # allowed by some passed WU?
+    # allowed by some contract allowed_paths?
     local attributed=0
-    local pwu
-    for pwu in "${!WU_PASSED[@]}"; do
-      local ap="${WU_ALLOWED[$pwu]}"
-      local oldifs="$IFS"
-      IFS='|'
-      # shellcheck disable=SC2086
-      set -- $ap
-      IFS="$oldifs"
-      local pat
-      for pat in "$@"; do
-        [ -z "$pat" ] && continue
-        if goalspec_path_matches "$pat" "$f"; then
-          attributed=1; break
-        fi
-      done
-      [ "$attributed" = "1" ] && break
+    oldifs="$IFS"
+    IFS=$'\n'
+    for pat in $ALLOWED; do
+      [ -z "$pat" ] && continue
+      if goalspec_path_matches "$pat" "$f"; then
+        attributed=1; break
+      fi
     done
+    IFS="$oldifs"
     if [ "$attributed" != "1" ]; then
       unattributed="${unattributed}$f "
     fi
@@ -208,7 +166,7 @@ goalspec_scope_check_run() {
     errs=$((errs+1))
   fi
   if [ -n "$unattributed" ]; then
-    echo "scope-check: business files not attributed to a passed WU: $unattributed" >&2
+    echo "scope-check: business files not within contract allowed_paths: $unattributed" >&2
     errs=$((errs+1))
   fi
   [ "$errs" -eq 0 ]

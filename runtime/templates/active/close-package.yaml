@@ -1,0 +1,28 @@
+status: draft
+generated_at: null
+goal_id: null
+goal_summary: ""
+criteria_verdicts: []
+verification:
+  commands: []
+changed_files:
+  business: []
+  goalspec: []
+memory_patch:
+  patches: []
+commit:
+  message: ""
+pr:
+  title: ""
+  body: ""
+risks:
+  residual: []
+  follow_ups: []
+hashes:
+  contract_hash: null
+  evidence_hash: null
+  verdict_hash: null
+  memory_patch_hash: null
+  changed_files_hash: null
+  suggested_delivery_hash: null
+  close_package_hash: null

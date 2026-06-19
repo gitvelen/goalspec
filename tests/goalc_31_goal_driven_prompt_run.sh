@@ -25,7 +25,7 @@ YML
   "$REPO_GS" approve intake-package >/dev/null
   "$REPO_GS" intake apply-suggestions >/dev/null
   approve_intake_and_goal
-  compile_to_contract_reviewed
+  compile_to_awaiting_confirmation
   do_freeze
 }
 

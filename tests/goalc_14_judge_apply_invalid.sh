@@ -20,7 +20,6 @@ YML
 "$REPO_GS" review apply "$tmp/c.yaml" >/dev/null
 "$REPO_GS" approve contract >/dev/null
 "$REPO_GS" freeze >/dev/null
-"$REPO_GS" next >/dev/null
 
 CHASH="$(yq e '.contract_hash' "$REPO/.goalspec/active/contract.yaml")"
 mkdir -p "$REPO/src"; echo x > "$REPO/src/a.txt"
@@ -28,7 +27,6 @@ cat > "$REPO/.goalspec/active/evidence.yaml" <<YML
 evidence:
   - id: EV-001
     contract_hash: "$CHASH"
-    work_unit_ref: WU-001
     criteria_refs: [CRIT-001]
     evidence_requirement_refs: [EVIDREQ-001]
     command: t
@@ -39,7 +37,7 @@ evidence:
     persistence: memory
     completion_level: integrated_runtime
     reproducible: true
-    produced_by: executor
+    produced_by: subagent
     produced_at: 2026-06-15T00:00:00Z
     residual_risk: {level: none, notes: ""}
 YML
@@ -47,7 +45,6 @@ EHASH="$(cur_evidence_hash)"
 
 # A) missing context:fresh
 cat > "$tmp/v-noctx.yaml" <<YML
-work_unit_ref: WU-001
 criteria_ref: CRIT-001
 evidence_refs: [EV-001]
 contract_hash: "$CHASH"
@@ -55,7 +52,7 @@ evidence_hash: "$EHASH"
 verdict: pass
 reason: x
 context: stale
-judged_by: guardian
+evaluated_by: master
 YML
 if "$REPO_GS" judge apply "$tmp/v-noctx.yaml" >/dev/null 2>&1; then
   bad "judge apply accepted non-fresh context"
@@ -65,7 +62,6 @@ fi
 
 # B) criteria_ref not in contract
 cat > "$tmp/v-badcrit.yaml" <<YML
-work_unit_ref: WU-001
 criteria_ref: CRIT-DOES-NOT-EXIST
 evidence_refs: [EV-001]
 contract_hash: "$CHASH"
@@ -73,7 +69,7 @@ evidence_hash: "$EHASH"
 verdict: pass
 reason: x
 context: fresh
-judged_by: guardian
+evaluated_by: master
 YML
 if "$REPO_GS" judge apply "$tmp/v-badcrit.yaml" >/dev/null 2>&1; then
   bad "judge apply accepted unknown criteria_ref"
@@ -83,7 +79,6 @@ fi
 
 # C) evidence_ref not in evidence.yaml
 cat > "$tmp/v-badev.yaml" <<YML
-work_unit_ref: WU-001
 criteria_ref: CRIT-001
 evidence_refs: [EV-DOES-NOT-EXIST]
 contract_hash: "$CHASH"
@@ -91,7 +86,7 @@ evidence_hash: "$EHASH"
 verdict: pass
 reason: x
 context: fresh
-judged_by: guardian
+evaluated_by: master
 YML
 if "$REPO_GS" judge apply "$tmp/v-badev.yaml" >/dev/null 2>&1; then
   bad "judge apply accepted unknown evidence_ref"
@@ -101,7 +96,6 @@ fi
 
 # D) contract_hash mismatch
 cat > "$tmp/v-badhash.yaml" <<YML
-work_unit_ref: WU-001
 criteria_ref: CRIT-001
 evidence_refs: [EV-001]
 contract_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
@@ -109,7 +103,7 @@ evidence_hash: "$EHASH"
 verdict: pass
 reason: x
 context: fresh
-judged_by: guardian
+evaluated_by: master
 YML
 if "$REPO_GS" judge apply "$tmp/v-badhash.yaml" >/dev/null 2>&1; then
   bad "judge apply accepted mismatched contract_hash"
@@ -123,7 +117,6 @@ cat > "$REPO/.goalspec/active/evidence.yaml" <<YML
 evidence:
   - id: EV-002
     contract_hash: "$CHASH"
-    work_unit_ref: WU-001
     criteria_refs: [CRIT-001]
     evidence_requirement_refs: []
     command: t
@@ -134,13 +127,12 @@ evidence:
     persistence: memory
     completion_level: in_memory_domain
     reproducible: true
-    produced_by: executor
+    produced_by: subagent
     produced_at: 2026-06-15T00:00:00Z
     residual_risk: {level: none, notes: ""}
 YML
 EHASH2="$(cur_evidence_hash)"
 cat > "$tmp/v-noreq.yaml" <<YML
-work_unit_ref: WU-001
 criteria_ref: CRIT-001
 evidence_refs: [EV-002]
 contract_hash: "$CHASH"
@@ -148,7 +140,7 @@ evidence_hash: "$EHASH2"
 verdict: pass
 reason: ok
 context: fresh
-judged_by: guardian
+evaluated_by: master
 YML
 if "$REPO_GS" judge apply "$tmp/v-noreq.yaml" >/dev/null 2>&1; then
   bad "judge apply accepted pass verdict without required evidence_requirement"

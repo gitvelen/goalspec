@@ -12,8 +12,8 @@ case "$sub" in
         cat <<EOF
 # Intake review prompt (fresh context)
 
-You are the guardian performing an INTAKE review. Do not read any executor
-conversation. Read ONLY:
+You are a fresh-context reviewer performing an INTAKE review. Do not read any
+implementation conversation. Read ONLY:
   - .goalspec/active/goal.md
   - .goalspec/active/questions.yaml
 
@@ -45,19 +45,18 @@ EOF
         cat <<EOF
 # Contract review prompt (fresh context)
 
-You are the guardian performing a CONTRACT/CRITERIA review. Read ONLY:
+You are a fresh-context reviewer performing a CONTRACT/CRITERIA review. Read ONLY:
   - .goalspec/active/contract.yaml
   - .goalspec/active/goal.md
   - .goalspec/project/*.yaml
 
-Verify (GOALC #5):
-  - every core goal scenario is covered by criteria (coverage_map complete).
+Verify:
+  - every core goal scenario is covered by criteria.
   - every must_not_happen becomes a negative criterion.
   - out_of_scope is reflected as hard constraints.
-  - work_units are behavior slices, not module tasks.
   - each criterion is decidable and not too weak/strong/vague.
-  - each WU has criteria_refs, allowed_paths, forbidden_paths, evidence refs.
-  - each evidence requirement can prove its criterion.
+  - each criterion's evidence_requirement_refs can prove that criterion.
+  - allowed_paths / forbidden_paths express the execution scope boundary.
   - locked regressions are injected as required evidence.
   - there is a final criterion.
   - no blocking compile question.
@@ -103,11 +102,8 @@ EOF
           # goalspec_stale_goal_changed / status BLOCKERS misreport goal_changed.
           yq e -i ".goal_hash = \"$(goalspec_goal_hash)\"" "$GOALSPEC_ROOT/active/state.yaml"
         fi
-        # transition draft -> intake_reviewed only when pass
-        cur="$(yq e '.status' "$GOALSPEC_ROOT/active/state.yaml")"
-        if [ "$result" = "pass" ] && [ "$cur" = "draft" ]; then
-          goalspec_state_set_status intake_reviewed
-        fi
+        # intake review pass does not change the §4 lifecycle state; the goal
+        # stays in spec_drafting until the contract is reviewed.
         ;;
       contract|criteria)
         target_hash="$(goalspec_contract_hash)"
@@ -119,9 +115,9 @@ EOF
             echo "contract review cannot pass: blocking questions unresolved" >&2
             exit 1
           fi
-          # advance state
-          if [ "$cur" = "contract_draft" ]; then
-            goalspec_state_set_status contract_reviewed
+          # advance state: contract reviewed -> awaiting human confirmation to freeze
+          if [ "$cur" = "spec_drafting" ]; then
+            goalspec_state_set_status awaiting_human_confirmation
           fi
         fi
         ;;

@@ -18,7 +18,6 @@ YML
 "$REPO_GS" review apply "$tmp/c.yaml" >/dev/null
 "$REPO_GS" approve contract >/dev/null
 "$REPO_GS" freeze >/dev/null
-"$REPO_GS" next >/dev/null
 
 CHASH="$(yq e '.contract_hash' "$REPO/.goalspec/active/contract.yaml")"
 mkdir -p "$REPO/src"; echo x > "$REPO/src/a.txt"
@@ -26,7 +25,6 @@ cat > "$REPO/.goalspec/active/evidence.yaml" <<YML
 evidence:
   - id: EV-001
     contract_hash: "$CHASH"
-    work_unit_ref: WU-001
     criteria_refs: [CRIT-001]
     evidence_requirement_refs: [EVIDREQ-001]
     command: t
@@ -37,14 +35,13 @@ evidence:
     persistence: memory
     completion_level: integrated_runtime
     reproducible: true
-    produced_by: executor
+    produced_by: subagent
     produced_at: 2026-06-15T00:00:00Z
     residual_risk: {level: none, notes: ""}
 YML
 EHASH="$(cur_evidence_hash)"
 for c in CRIT-001 CRIT-FINAL-001; do
 cat > "$tmp/v-$c.yaml" <<YML
-work_unit_ref: WU-001
 criteria_ref: $c
 evidence_refs: [EV-001]
 contract_hash: "$CHASH"
@@ -52,7 +49,7 @@ evidence_hash: "$EHASH"
 verdict: pass
 reason: ok
 context: fresh
-judged_by: guardian
+evaluated_by: master
 YML
 "$REPO_GS" judge apply "$tmp/v-$c.yaml" >/dev/null
 done
@@ -74,10 +71,10 @@ else
   ok "complete blocked by unattributed business file"
 fi
 
-# Remove the unattributed file: src/a.txt IS within WU-001 allowed_paths (src/**) and WU-001 has a pass verdict.
+# Remove the unattributed file: src/a.txt IS within contract allowed_paths (src/**).
 /bin/rm -rf "$REPO/random"
 if "$REPO_GS" complete >/dev/null 2>&1; then
-  ok "complete succeeds when all dirty files attributed to a passed WU"
+  ok "complete succeeds when all dirty files are within contract allowed_paths"
 else
   bad "complete blocked even though all dirty files are attributed"
 fi

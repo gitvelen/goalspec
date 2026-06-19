@@ -62,11 +62,12 @@ fi
 chash="$(goalspec_contract_hash)"
 yq e -i ".status = \"frozen\"" "$cf"
 yq e -i ".contract_hash = \"$chash\"" "$cf"
-# state hash + transition.
+# state hash + transition: frozen artifacts -> ready_to_run (enhance_v2.md §4).
 yq e -i ".contract_hash = \"$chash\"" "$state_file"
 yq e -i ".evidence_hash = \"$(goalspec_evidence_hash)\"" "$state_file"
+# Generate the Goal-Driven Prompt -> ready_to_run.
 goalspec_prompt_generate
-goalspec_state_set_status prompt_ready
+goalspec_state_set_status ready_to_run
 # Record base_revision for scope checks from here.
 yq e -i ".git.base_revision = \"$(goalspec_git_head)\"" "$state_file"
 
