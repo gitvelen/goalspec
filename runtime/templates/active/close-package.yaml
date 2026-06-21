@@ -15,6 +15,11 @@ commit:
 pr:
   title: ""
   body: ""
+delivery:
+  mode: github_pr
+  remote: origin
+  base_branch: main
+  creates_pr: true
 risks:
   residual: []
   follow_ups: []

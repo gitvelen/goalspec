@@ -123,11 +123,11 @@ fi
 
 GOALSPEC_ROOT="$SCRIPT_DIR"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-# Prefer the .goalspec/ in the current working directory if present (so the
-# framework can be invoked from anywhere with the project-local copy used).
-if [ -d "$PWD/.goalspec" ] && [ "$PWD/.goalspec" != "$SCRIPT_DIR" ]; then
-  GOALSPEC_ROOT="$PWD/.goalspec"
-  PROJECT_ROOT="$PWD"
+# Use the invoked project-local .goalspec/goalspec as the sole root. Silently
+# switching to $PWD/.goalspec can mix runtime from one project with state from
+# another when an absolute goalspec path is invoked from a different repo.
+if [ -d "$PWD/.goalspec" ] && [ "$(cd "$PWD/.goalspec" && pwd)" != "$SCRIPT_DIR" ]; then
+  echo "goalspec: ignoring different .goalspec in current directory; using invoked root $SCRIPT_DIR" >&2
 fi
 export GOALSPEC_ROOT PROJECT_ROOT
 

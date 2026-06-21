@@ -117,7 +117,9 @@ JSON
 }
 JSON
   cat > "$plugin_root/commands/goalspec.md" <<'MD'
-Use the bundled goalspec skill. Interpret `/goalspec ...` as the user-facing Goalspec command layer and follow the project-local `.goalspec/goalspec status` output.
+Use the bundled goalspec skill. Interpret `/goalspec ...` as the human-facing Goalspec command layer; execute `.goalspec/goalspec ...` only as the project-local agent CLI translation.
+
+Goalspec is explicit opt-in: only enter this lifecycle when the human explicitly uses `/goalspec ...` or clearly asks to run a formal Goalspec-managed change. Otherwise handle the request as normal development work.
 MD
   echo "goalspec Claude plugin package installed: $plugin_root"
 }
@@ -129,9 +131,11 @@ install_lingma_commands() {
 cat > "$commands_dir/goalspec.md" <<'MD'
 # Goalspec
 
-Use the installed goalspec skill. Interpret `/goalspec status`, `/goalspec start`, `/goalspec source`, `/goalspec end`, `/goalspec run`, `/goalspec close`, and `/goalspec reopen` as the user-facing Goalspec command layer.
+Use the installed goalspec skill. Interpret `/goalspec status`, `/goalspec start`, `/goalspec source`, `/goalspec end`, `/goalspec run`, `/goalspec close`, and `/goalspec reopen` as the human-facing Goalspec command layer; execute `.goalspec/goalspec ...` only as the project-local agent CLI translation.
 
-`/goalspec start` opens the formal intake window only when status is `no_goal` or `closed`. `/goalspec source <path>` only adds material while the window is open (collecting). `/goalspec end` is the only command that closes the window. Do not start implementation unless the user explicitly runs `/goalspec run`.
+Goalspec is explicit opt-in: only enter this lifecycle when the human explicitly uses `/goalspec ...` or clearly asks to run a formal Goalspec-managed change. Otherwise handle the request as normal development work.
+
+`/goalspec start` opens the formal intake window only when status is `no_goal` or `closed`. `/goalspec source <path>` only adds material while the window is open (collecting). `/goalspec end` is the only command that closes the window, after which the AI must draft a concise Goal / Criteria / Constraints review summary and wait for `确认并冻结契约` before freezing. Do not start implementation unless the user explicitly runs `/goalspec run`.
 
 ## Run hard rules
 
@@ -143,9 +147,9 @@ When the user runs `/goalspec run`:
 4. Treat the Prompt's Goal, Criteria, and Constraints as the authoritative control for this execution.
 5. Do not substitute your own implementation plan for this Prompt. Do not execute from memory.
 6. Do not continue if the Prompt is missing, stale, or not frozen.
-7. Never treat "confirm" or "continue" as run permission unless the user explicitly includes `/goalspec run`.
+7. Never treat bare "confirm", "确认", "ok", or "continue" as run, freeze, or close permission. Require stage-specific phrases such as `确认并应用 intake package` or `确认并冻结契约`, and require `/goalspec run` for implementation.
 
-If the tool supports explicit subagents, create exactly one Subagent to execute; otherwise simulate role separation with visible `Master Evaluation`, `Subagent Work`, and `Evidence/Progress Report` phases. Do not self-declare completion — Criteria completion only comes from Master verdicts, and delivery closure only comes from a successful `.goalspec/goalspec close`. Do not manually replace close with git/gh/archive/state edits.
+If the tool supports explicit subagents, create exactly one Subagent to execute; otherwise simulate role separation with visible `Master Evaluation`, `Subagent Work`, and `Evidence/Progress Report` phases. Do not self-declare completion — Criteria completion only comes from Master verdicts, and delivery closure only comes from a successful `.goalspec/goalspec close` using the configured delivery mode. Do not manually replace close with git/gh/archive/state edits.
 MD
   echo "goalspec Lingma command notes installed: $commands_dir/goalspec.md"
 }

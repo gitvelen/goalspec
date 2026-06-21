@@ -3,12 +3,21 @@
 
 # Returns 0 if current directory is inside a git repo.
 goalspec_git_in_repo() {
-  git rev-parse --git-dir >/dev/null 2>&1
+  git -C "$PROJECT_ROOT" rev-parse --git-dir >/dev/null 2>&1
 }
 
 # Get current HEAD revision (returns empty if no commit yet).
 goalspec_git_head() {
-  git rev-parse HEAD 2>/dev/null || echo ""
+  git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo ""
+}
+
+# Framework-managed metadata and AI collaboration guides are not business files.
+goalspec_git_is_framework_file() {
+  local f="$1"
+  case "$f" in
+    .goalspec/*|AGENTS.md|CLAUDE.md) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 # List changed files vs base. Both committed and untracked/unstaged are returned.
@@ -20,17 +29,17 @@ goalspec_git_changed_files() {
   head="$(goalspec_git_head)"
   if [ -z "$head" ]; then
     # No commits — list untracked
-    git ls-files --others --exclude-standard 2>/dev/null
+    git -C "$PROJECT_ROOT" ls-files --others --exclude-standard 2>/dev/null
     return 0
   fi
   if [ -z "$base" ]; then
     # All tracked + untracked not yet committed vs HEAD
-    git diff --name-only HEAD 2>/dev/null
-    git ls-files --others --exclude-standard 2>/dev/null
+    git -C "$PROJECT_ROOT" diff --name-only HEAD 2>/dev/null
+    git -C "$PROJECT_ROOT" ls-files --others --exclude-standard 2>/dev/null
   else
-    git diff --name-only "$base" "$head" 2>/dev/null
-    git diff --name-only HEAD 2>/dev/null
-    git ls-files --others --exclude-standard 2>/dev/null
+    git -C "$PROJECT_ROOT" diff --name-only "$base" "$head" 2>/dev/null
+    git -C "$PROJECT_ROOT" diff --name-only HEAD 2>/dev/null
+    git -C "$PROJECT_ROOT" ls-files --others --exclude-standard 2>/dev/null
   fi
 }
 
@@ -42,11 +51,8 @@ goalspec_git_business_dirty() {
   local found=0
   while IFS= read -r f; do
     [ -z "$f" ] && continue
-    case "$f" in
-      .goalspec/*) continue ;;   # shell glob: .goalspec/<anything> incl slashes
-      AGENTS.md|CLAUDE.md) continue ;;
-      *) found=1; break ;;
-    esac
+    if goalspec_git_is_framework_file "$f"; then continue; fi
+    found=1; break
   done <<<"$files"
   [ "$found" -eq 1 ]
 }

@@ -14,6 +14,20 @@ goalspec_close_latest_verdict_field() {
   yq e "[.verdicts[] | select(.criteria_ref == \"$cid\")] | .[-1].$field // \"\"" "$vf" 2>/dev/null || true
 }
 
+# Fingerprint of the current verdict state: each criterion's latest verdict
+# concatenated in contract order. Used by the run-loop no-progress detector
+# (stalled) — if this fingerprint and the evidence_hash are both unchanged across
+# N consecutive judge-apply rounds, the loop is making no progress.
+goalspec_close_verdict_fingerprint() {
+  local cid v fp=""
+  while IFS= read -r cid; do
+    [ -z "$cid" ] && continue
+    v="$(goalspec_close_latest_verdict_field "$cid" verdict)"
+    fp="${fp}${cid}=${v}|"
+  done <<<"$(goalspec_close_required_criteria_ids)"
+  printf '%s' "$fp"
+}
+
 goalspec_close_all_required_pass() {
   local cid verdict missing="" bad=""
   while IFS= read -r cid; do
@@ -54,6 +68,8 @@ goalspec_close_write_package() {
   local state_file="$GOALSPEC_ROOT/active/state.yaml"
   local goal_id goal_summary base changed_business changed_goalspec now
   local chash ehash vhash mhash changed_hash suggested_hash cphash
+  local delivery_mode delivery_remote delivery_base creates_pr
+  local pf vtmp
   goal_id="$(yq e '.active_goal_id // ""' "$state_file")"
   goal_summary="$(awk '/^## .*Intent/ { in_intent=1; next } /^## / && in_intent { exit } in_intent && NF { print; exit }' "$GOALSPEC_ROOT/active/goal.md" 2>/dev/null || true)"
   [ -n "$goal_summary" ] || goal_summary="$goal_id"
@@ -64,8 +80,17 @@ goalspec_close_write_package() {
   vhash="$(goalspec_verdict_hash)"
   mhash="$(goalspec_memory_patch_hash)"
   changed_hash="$(goalspec_changed_files_hash)"
+  delivery_mode="$(goalspec_delivery_mode)"
+  case "$delivery_mode" in invalid:*) delivery_mode="github_pr" ;; esac
+  delivery_remote="$(goalspec_git_remote)"
+  delivery_base="$(goalspec_git_default_branch)"
+  [ "$delivery_mode" = "github_pr" ] && creates_pr=true || creates_pr=false
 
-  changed_business="$(goalspec_git_changed_files "$base" | sort -u | grep -v '^\.goalspec/' || true)"
+  changed_business="$(goalspec_git_changed_files "$base" | sort -u | while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    goalspec_git_is_framework_file "$f" && continue
+    printf '%s\n' "$f"
+  done)"
   changed_goalspec="$(goalspec_git_changed_files "$base" | sort -u | grep '^\.goalspec/' || true)"
 
   cat > "$cpf" <<YML
@@ -114,6 +139,11 @@ pr:
     Goal: $goal_summary
 
     Generated from .goalspec/active/close-package.yaml.
+delivery:
+  mode: "$delivery_mode"
+  remote: "${delivery_remote:-}"
+  base_branch: "${delivery_base:-}"
+  creates_pr: $creates_pr
 risks:
   residual: []
   follow_ups: []
@@ -126,6 +156,18 @@ hashes:
   suggested_delivery_hash: null
   close_package_hash: null
 YML
+
+  # Populate verification.commands from the project profile — the same commands
+  # final verification runs at /goalspec close. exit_code/summary are null here:
+  # the commands run during close, not at close-package generation time.
+  pf="$GOALSPEC_ROOT/project/profile.yaml"
+  if [ -f "$pf" ]; then
+    vtmp="$(mktemp)"
+    yq e -o=yaml '[ ((.commands.test // []) + (.commands.build // []) + (.commands.lint // []) + (.commands.typecheck // []))[] | {"command": ., "exit_code": null, "summary": "runs during /goalspec close final verification"} ] | map(select(.command != null))' "$pf" > "$vtmp"
+    yq e -i ".verification.commands = load(\"$vtmp\")" "$cpf"
+    /bin/rm -f "$vtmp"
+  fi
+
   suggested_hash="$(goalspec_suggested_delivery_hash)"
   yq e -i ".hashes.suggested_delivery_hash = \"$suggested_hash\"" "$cpf"
   cphash="$(goalspec_close_package_hash)"
@@ -142,9 +184,13 @@ Goal: $goal_summary
 - Verdict hash: $vhash
 - Memory patch hash: $mhash
 - Changed files hash: $changed_hash
+- Delivery mode: $delivery_mode
+- Delivery remote: ${delivery_remote:-none}
+- Delivery base branch: ${delivery_base:-none}
+- Creates PR: $creates_pr
 - Close package hash: $cphash
 
-Run \`/goalspec close\` to confirm this package and authorize archive, memory update, commit, push, and PR creation.
+Run \`/goalspec close\` to confirm this package and authorize the configured delivery mode.
 MD
 }
 
@@ -221,7 +267,7 @@ goalspec_close_next_history_version() {
 goalspec_close_archive_active() {
   local vname="$1" hdir="$GOALSPEC_ROOT/history/$vname" f
   mkdir -p "$hdir"
-  for f in goal.md goal.yaml criteria.yaml constraints.yaml contract.yaml goal-driven-prompt.md evidence.yaml verdict.yaml trace.yaml regressions.yaml memory-patch.yaml questions.yaml reviews.yaml state.yaml close-package.yaml close-package.md; do
+  for f in goal.md goal.yaml criteria.yaml constraints.yaml contract.yaml goal-driven-prompt.md evidence.yaml verdict.yaml trace.yaml regressions.yaml memory-patch.yaml questions.yaml reviews.yaml state.yaml close-package.yaml close-package.md reopen-impact.yaml harness-improvement-candidate.yaml; do
     [ -f "$GOALSPEC_ROOT/active/$f" ] && cp "$GOALSPEC_ROOT/active/$f" "$hdir/$f"
   done
 }

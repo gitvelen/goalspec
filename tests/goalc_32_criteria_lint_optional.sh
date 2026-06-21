@@ -95,7 +95,7 @@ evidence:
     criteria_refs: [CRIT-001, CRIT-FINAL-001]
     attempt: A1
     evidence_requirement_refs: [EVIDREQ-001]
-    command: "browser test"
+    command: "true"
     exit_code: 0
     artifact_paths: []
     provider_source: not_required

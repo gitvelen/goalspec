@@ -1,1 +1,19 @@
+# trace.yaml — per-round audit trail of the run-loop (Loop Engineering
+# observability). One entry appended per judge-apply by
+# goalspec_trace_append. The Master/Subagent loop lives inside one
+# /goalspec run; trace.yaml is the human-reviewable per-round view of what the
+# loop did and why it continued or stopped. Archived to history/ on close.
+#
+# Entry schema:
+#   - iteration: <int>             # mirrors run_loop.iteration after this round
+#     judged_at: "<iso8601>"
+#     criterion_ref: "CRIT-..."
+#     verdict: pass | fail | insufficient | blocked | stale | reopen_required
+#     master_reasoning: "..."      # the verdict's reason
+#     evidence_diff: [EV-...]      # EV ids current when evidence_hash moved this round
+#     stop_check:
+#       outcome: continue | capped | stalled
+#       why: "..."                 # one-line reason this round continued or stopped
+#     contract_hash: "sha256:..."  # frozen basis this round ran under
+#     prompt_hash: "sha256:..."    # goal-driven-prompt.md hash (rule-version provenance)
 traces: []

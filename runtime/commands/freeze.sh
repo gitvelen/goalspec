@@ -51,6 +51,17 @@ if goalspec_git_business_dirty; then
   fail "business worktree dirty; commit or stash business changes before freeze"
 fi
 
+# 7.5 reopen recovery requires an explicit, human-reviewed impact analysis.
+if [ "$(yq e '.status // "no_goal"' "$state_file")" = "reopen_required" ]; then
+  impact_file="$GOALSPEC_ROOT/active/reopen-impact.yaml"
+  [ -f "$impact_file" ] || fail "reopen-impact.yaml missing"
+  [ "$(yq e '.reviewed_by_human // false' "$impact_file")" = "true" ] || fail "reopen impact has not been reviewed by a human"
+  [ -n "$(yq e '.analysis.summary // ""' "$impact_file")" ] || fail "reopen impact summary is empty"
+  yq e -i '.status = "reviewed"' "$impact_file"
+  yq e -i ".reviewed_at = \"$(goalspec_now)\"" "$impact_file"
+  yq e -i ".reopen_impact_hash = \"$(goalspec_hash_file "$impact_file")\"" "$state_file"
+fi
+
 # 8. Inject locked regressions as required_evidence (best-effort check: warn if any
 # locked regression is not reflected in required_regressions).
 n_locked="$(yq e '[.regressions[] | select(.status == "locked")] | length' "$GOALSPEC_ROOT/project/regression-suite.yaml" 2>/dev/null || echo 0)"

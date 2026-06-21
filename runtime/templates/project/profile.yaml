@@ -17,3 +17,24 @@ environment:
   required_env_vars: []
   local_setup_notes: []
 tools: []
+# /goalspec close delivery mode — pick by team workflow (see README "Delivery modes"):
+#   github_pr    — commit + push + open a PR (default; full automation)
+#   push_only    — commit + push to a branch, no PR
+#   local_commit — commit only, no push (push forbidden / local-first teams)
+#   archive_only — archive to .goalspec/history/, touch no git at all
+#                  (teams with their own release/PR/CI pipeline)
+delivery:
+  mode: github_pr
+  remote: origin
+  base_branch: main
+# run-loop stop-loss: the Master/Subagent loop inside a single /goalspec run is
+# capped at this many judge-apply rounds. Set before the loop runs (Akshy: exit
+# conditions are decided before running, not during). Default 8.
+# stall_threshold: no-progress detector. If the verdict fingerprint and the
+# evidence_hash are both unchanged for this many consecutive judge-apply rounds,
+# the loop is marked stalled (Oracle: no-progress detection). stalled is distinct
+# from capped — capped means the budget is exhausted (close or raise it), stalled
+# means the loop is spinning on an unsolvable spec defect (reopen). Default 3.
+run_loop:
+  max_iterations: 8
+  stall_threshold: 3

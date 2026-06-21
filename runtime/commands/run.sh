@@ -15,6 +15,22 @@ deny() {
   exit 1
 }
 
+state="$(yq e '.status // "no_goal"' "$state_file" 2>/dev/null || echo "no_goal")"
+[ "$state" != "reopen_required" ] || deny "state is reopen_required; review the reopen impact, revise goal.md and/or contract.yaml, then re-review, re-approve, and freeze before running again"
+# capped blocks the loop — UNLESS all Criteria already pass, in which case run
+# must still generate the close package so the human can /goalspec close.
+if [ "$(yq e '.run_loop.last_outcome // ""' "$state_file")" = "capped" ] \
+  && ! goalspec_close_completion_gate >/dev/null 2>&1; then
+  deny "run-loop is capped (reached max_iterations); run /goalspec close if Criteria are met, or /goalspec reopen to reset"
+fi
+# stalled blocks the loop the same way — UNLESS all Criteria already pass.
+# stalled means the loop spun without progress (a likely spec defect), so the
+# recovery hint steers toward reopen rather than just "raise the cap".
+if [ "$(yq e '.run_loop.last_outcome // ""' "$state_file")" = "stalled" ] \
+  && ! goalspec_close_completion_gate >/dev/null 2>&1; then
+  deny "run-loop is stalled (no progress for stall_threshold rounds — likely a spec defect); run /goalspec reopen to revise, or /goalspec close if Criteria are met"
+fi
+
 [ -f "$cf" ] || deny "contract.yaml is missing; Goal, Criteria, and Constraints are not frozen"
 [ "$(yq e '.status // ""' "$cf")" = "frozen" ] || deny "Goal, Criteria, and Constraints are not frozen"
 
@@ -34,7 +50,7 @@ nblock="$(yq e '[.questions[] | select(.blocking == true and .status != "resolve
 [ -f "$pf" ] || deny "Goal-Driven Prompt is missing"
 [ "$(yq e '.prompt_hash // ""' "$state_file")" = "$(goalspec_prompt_hash)" ] || deny "Goal-Driven Prompt is stale"
 
-case "$(yq e '.status' "$state_file")" in
+case "$state" in
   ready_to_run|prompt_ready)
     goalspec_state_set_status running
     ;;
@@ -45,6 +61,29 @@ case "$(yq e '.status' "$state_file")" in
     deny "state is not ready_to_run or running"
     ;;
 esac
+
+# judgment-kind stop condition: once every machine criterion has a pass
+# verdict, the loop must NOT blindly retry the remaining judgment-kind
+# criteria — those need human/Master resolution, not Subagent iteration
+# (Akshy: judgment work loops only to the degree the checker can confirm the
+# result). Checked only after machine criteria are satisfied, to avoid a
+# deadlock where judgment evidence depends on machine work finishing first.
+machine_unmet=""; judgment_unmet=""
+while IFS= read -r cid; do
+  [ -z "$cid" ] && continue
+  k="$(yq e ".criteria[] | select(.id == \"$cid\") | .kind // \"machine\"" "$cf")"
+  v="$(goalspec_close_latest_verdict_field "$cid" verdict)"
+  if [ "$v" = "pass" ]; then
+    :
+  elif [ "$k" = "judgment" ]; then
+    judgment_unmet="${judgment_unmet}${cid} "
+  else
+    machine_unmet="${machine_unmet}${cid} "
+  fi
+done <<<"$(goalspec_close_required_criteria_ids)"
+if [ -z "$machine_unmet" ] && [ -n "$judgment_unmet" ]; then
+  deny "machine criteria satisfied; remaining judgment-kind criteria require human/Master resolution, not blind Subagent retry: $judgment_unmet"
+fi
 
 if goalspec_close_completion_gate >/dev/null 2>&1; then
   goalspec_close_write_package

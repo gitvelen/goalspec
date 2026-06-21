@@ -131,7 +131,7 @@ goalspec_suggested_delivery_hash() {
   local cpf="$GOALSPEC_ROOT/active/close-package.yaml"
   [ -f "$cpf" ] || { echo ""; return 1; }
   local stripped h
-  stripped="$(yq e '{"commit": .commit, "pr": .pr}' "$cpf")"
+  stripped="$(yq e '{"commit": .commit, "pr": .pr, "delivery": .delivery}' "$cpf")"
   h="$(printf '%s' "$stripped" | sha256sum | awk '{print $1}')"
   echo "sha256:${h}"
 }

@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 set -uo pipefail
+# Ignore SIGPIPE: callers commonly pipe `status` into `grep -q` / `head`, which
+# close the read end early. The LOOP_CONTRACT render below spawns yq, so output
+# may still be in flight when the reader exits — without this, status would die
+# on SIGPIPE (141) and, under the caller's `pipefail`, report a false failure.
+trap '' PIPE
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)/load.sh"
 
 mode="text"
@@ -27,8 +32,6 @@ if [ -f "$state_file" ]; then
   if [ -n "$gid" ] && [ "$gid" != "null" ]; then
     case "$raw_state" in
       prompt_ready|frozen_ready) STATE="ready_to_run" ;;
-      completed) STATE="closed" ;;
-      judging_or_continuing) STATE="running" ;;
       *) STATE="$raw_state" ;;
     esac
   fi
@@ -75,7 +78,9 @@ if [ -f "$cf" ]; then
   while IFS= read -r cid; do
     [ -z "$cid" ] && continue
     v="$(yq e "[.verdicts[] | select(.criteria_ref == \"$cid\")] | .[-1].verdict // \"\"" "$vf" 2>/dev/null || true)"
-    [ "$v" = "pass" ] || UNMET_CRITERIA="${UNMET_CRITERIA}${cid} "
+    [ "$v" = "pass" ] && continue
+    k="$(yq e ".criteria[] | select(.id == \"$cid\") | .kind // \"machine\"" "$cf" 2>/dev/null || echo machine)"
+    UNMET_CRITERIA="${UNMET_CRITERIA}${cid}(${k}) "
   done <<<"$required_ids"
 fi
 [ -n "$UNMET_CRITERIA" ] || UNMET_CRITERIA="(none)"
@@ -97,11 +102,11 @@ case "$STATE" in
     ;;
   spec_drafting)
     NEEDS_HUMAN_CONFIRMATION="true"
-    NEXT_USER_ACTION="Draft Goal, Criteria, Constraints, out-of-scope, and blocking questions from .goalspec/active/intake-capture.md and .goalspec/active/constraint-suggestions.yaml; review and ask for confirmation."
+    NEXT_USER_ACTION="AI drafts Goal, Criteria, Constraints, out-of-scope, blocking questions, intake-capture.md, and constraint-suggestions.yaml, then shows a concise review summary and waits for stage-specific confirmation."
     ;;
   awaiting_human_confirmation)
     NEEDS_HUMAN_CONFIRMATION="true"
-    NEXT_USER_ACTION="Review and explicitly confirm the drafted Goal, Criteria, and Constraints before freezing."
+    NEXT_USER_ACTION="Review the drafted Goal, Criteria, Constraints, intake-capture.md, and constraint-suggestions.yaml; use stage-specific confirmation before applying intake suggestions or freezing."
     ;;
   ready_to_run)
     NEXT_USER_ACTION="Run /goalspec run to begin implementation from the frozen Goal-Driven Prompt."
@@ -111,7 +116,7 @@ case "$STATE" in
     ;;
   ready_to_close)
     NEEDS_HUMAN_CONFIRMATION="true"
-    NEXT_USER_ACTION="Review the close package, then run /goalspec close to archive, commit, push, and open a PR."
+    NEXT_USER_ACTION="Review the close package delivery mode, then run /goalspec close to archive and execute the configured delivery."
     ;;
   closing)
     NEXT_USER_ACTION="Close is in progress or recoverable. Re-run /goalspec close to continue from the checkpoint."
@@ -121,9 +126,28 @@ case "$STATE" in
     ;;
   blocked|reopen_required)
     NEEDS_HUMAN_CONFIRMATION="true"
-    NEXT_USER_ACTION="Resolve the blocker or run /goalspec reopen <reason>."
+    if [ "$STATE" = "reopen_required" ]; then
+      impact_status="$(yq e '.status // "missing"' "$GOALSPEC_ROOT/active/reopen-impact.yaml" 2>/dev/null || echo "missing")"
+      NEXT_USER_ACTION="Review and complete reopen-impact.yaml (status=$impact_status), revise goal.md and/or contract.yaml, then re-review, re-approve, and freeze before running again."
+    else
+      NEXT_USER_ACTION="Resolve the blocker, then continue from the current lifecycle step."
+    fi
     ;;
 esac
+
+# run-loop stop-loss signal: when the loop is capped, override the next action
+# to force a human decision (Step 05) — the loop must not keep spending.
+if [ "$(yq e '.run_loop.last_outcome // ""' "$state_file" 2>/dev/null)" = "capped" ]; then
+  NEEDS_HUMAN_CONFIRMATION="true"
+  NEXT_USER_ACTION="Run-loop reached the iteration cap (run_loop.iteration). Run /goalspec close if Criteria are actually met, or /goalspec reopen <reason> if the spec is wrong, then resume."
+fi
+# run-loop no-progress signal: stalled (verdict fingerprint + evidence unchanged
+# for stall_threshold rounds) steers toward reopen — it signals a spec defect,
+# not merely an exhausted budget.
+if [ "$(yq e '.run_loop.last_outcome // ""' "$state_file" 2>/dev/null)" = "stalled" ]; then
+  NEEDS_HUMAN_CONFIRMATION="true"
+  NEXT_USER_ACTION="Run-loop stalled: no progress for stall_threshold consecutive rounds (verdict fingerprint and evidence unchanged) — likely a spec defect. Run /goalspec reopen <reason> to revise the Goal/Criteria/Constraints, or /goalspec close if Criteria are actually met."
+fi
 
 sb="$(goalspec_stale_blockers)"
 if [ -n "$sb" ]; then
@@ -161,3 +185,12 @@ BLOCKERS: $BLOCKERS
 UNMET_CRITERIA: $UNMET_CRITERIA
 NEXT_USER_ACTION: $NEXT_USER_ACTION
 EOF
+
+# Tier 3: derived 11-item loop-contract view (read-only, no new artifact).
+# Only renders once the contract is frozen — there is no loop to describe
+# during intake/drafting.
+if [ "$FROZEN" = "true" ]; then
+  echo "LOOP_CONTRACT:"
+  goalspec_loop_contract_render | sed 's/^/  /'
+fi
+exit 0

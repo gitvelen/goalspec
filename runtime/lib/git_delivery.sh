@@ -1,20 +1,59 @@
 #!/usr/bin/env bash
 # git_delivery.sh — git, safety, and PR delivery helpers for goalspec close.
 
+goalspec_delivery_profile_value() {
+  local expr="$1" default="$2" pf="$GOALSPEC_ROOT/project/profile.yaml" val
+  val="$(yq e "$expr // \"\"" "$pf" 2>/dev/null || true)"
+  if [ -z "$val" ] || [ "$val" = "null" ]; then
+    echo "$default"
+  else
+    echo "$val"
+  fi
+}
+
+goalspec_delivery_mode() {
+  local mode
+  mode="$(goalspec_delivery_profile_value '.delivery.mode' 'github_pr')"
+  case "$mode" in
+    github_pr|push_only|local_commit|archive_only) echo "$mode" ;;
+    *) echo "invalid:$mode" ;;
+  esac
+}
+
 goalspec_git_default_branch() {
-  local b
-  b="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || true)"
-  [ -n "$b" ] || b="$(git branch --format='%(refname:short)' | grep -E '^(main|master)$' | head -1 || true)"
+  local configured b
+  configured="$(goalspec_delivery_profile_value '.delivery.base_branch' '')"
+  [ -n "$configured" ] && { echo "$configured"; return 0; }
+  b="$(git -C "$PROJECT_ROOT" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || true)"
+  [ -n "$b" ] || b="$(git -C "$PROJECT_ROOT" branch --format='%(refname:short)' | grep -E '^(main|master)$' | head -1 || true)"
   [ -n "$b" ] || echo "main" || true
   [ -z "$b" ] || echo "$b"
 }
 
 goalspec_git_current_branch() {
-  git branch --show-current 2>/dev/null || true
+  git -C "$PROJECT_ROOT" branch --show-current 2>/dev/null || true
+}
+
+goalspec_git_remote_detected() {
+  git -C "$PROJECT_ROOT" remote | head -1
+}
+
+goalspec_delivery_remote() {
+  goalspec_git_remote
+}
+
+goalspec_delivery_base_branch() {
+  goalspec_git_default_branch
 }
 
 goalspec_git_remote() {
-  git remote | head -1
+  local configured
+  configured="$(goalspec_delivery_profile_value '.delivery.remote' '')"
+  if [ -n "$configured" ]; then
+    git -C "$PROJECT_ROOT" remote get-url "$configured" >/dev/null 2>&1 && echo "$configured"
+    return 0
+  fi
+  goalspec_git_remote_detected
 }
 
 goalspec_slugify() {
@@ -33,7 +72,7 @@ goalspec_delivery_ensure_branch() {
   local goal_id summary cur branch base
   branch="$(yq e '.close.branch // ""' "$state_file")"
   if [ -n "$branch" ] && [ "$branch" != "null" ]; then
-    git checkout "$branch" >/dev/null 2>&1 || return 1
+    git -C "$PROJECT_ROOT" checkout "$branch" >/dev/null 2>&1 || return 1
     echo "$branch"
     return 0
   fi
@@ -44,7 +83,7 @@ goalspec_delivery_ensure_branch() {
     goal_id="$(yq e '.active_goal_id // "goal"' "$state_file")"
     summary="$(yq e '.goal_summary // "change"' "$GOALSPEC_ROOT/active/close-package.yaml")"
     branch="$(goalspec_delivery_branch_name "$goal_id" "$summary")"
-    git checkout -B "$branch" >/dev/null 2>&1 || return 1
+    git -C "$PROJECT_ROOT" checkout -B "$branch" >/dev/null 2>&1 || return 1
   else
     branch="$cur"
   fi
@@ -57,22 +96,17 @@ goalspec_delivery_stage_files() {
   base="$(yq e '.git.base_revision // ""' "$GOALSPEC_ROOT/active/state.yaml")"
   goalspec_git_changed_files "$base" | sort -u | while IFS= read -r f; do
     [ -z "$f" ] && continue
-    case "$f" in
-      .goalspec/*|AGENTS.md|CLAUDE.md|README.md|runtime/*|skills/*|tests/*|goalspec|goalspec_enhance.md|enhance_v2.md)
-        git add -- "$f" ;;
-      *)
-        git add -- "$f" ;;
-    esac
+    git -C "$PROJECT_ROOT" add -- "$f"
   done
 }
 
 goalspec_delivery_has_staged_changes() {
-  ! git diff --cached --quiet --exit-code
+  ! git -C "$PROJECT_ROOT" diff --cached --quiet --exit-code
 }
 
 goalspec_delivery_scan_secrets() {
   local files f hits=""
-  files="$(git diff --cached --name-only; git diff --name-only; git ls-files --others --exclude-standard)"
+  files="$(git -C "$PROJECT_ROOT" diff --cached --name-only; git -C "$PROJECT_ROOT" diff --name-only; git -C "$PROJECT_ROOT" ls-files --others --exclude-standard)"
   while IFS= read -r f; do
     [ -z "$f" ] && continue
     [ -f "$PROJECT_ROOT/$f" ] || continue
@@ -124,6 +158,6 @@ goalspec_delivery_create_pr() {
   base="$(yq e '.close.base_branch // "main"' "$GOALSPEC_ROOT/active/state.yaml")"
   remote="$(yq e '.close.remote // "origin"' "$GOALSPEC_ROOT/active/state.yaml")"
   branch="$(yq e '.close.branch // ""' "$GOALSPEC_ROOT/active/state.yaml")"
-  out="$(gh pr create --base "$base" --head "$branch" --title "$title" --body "$body" 2>&1)" || { echo "$out" >&2; return 1; }
+  out="$(cd "$PROJECT_ROOT" && gh pr create --base "$base" --head "$branch" --title "$title" --body "$body" 2>&1)" || { echo "$out" >&2; return 1; }
   printf '%s\n' "$out" | tail -1
 }

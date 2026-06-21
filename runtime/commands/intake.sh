@@ -6,15 +6,8 @@ set -uo pipefail
 state_file="$GOALSPEC_ROOT/active/state.yaml"
 
 ensure_active_goal() {
-  local gid cur_status
-  gid="$(yq e '.active_goal_id // ""' "$state_file" 2>/dev/null || echo "")"
-  cur_status="$(yq e '.status // "no_goal"' "$state_file" 2>/dev/null || echo "no_goal")"
-  if [ -n "$gid" ] && [ "$gid" != "null" ] && [ "$cur_status" != "closed" ] && [ "$cur_status" != "completed" ]; then
-    case "$cur_status" in
-      no_goal|intake_collecting|spec_drafting|awaiting_human_confirmation) return 0 ;;
-      *) echo "goalspec intake: active goal is not closed (status=$cur_status). Close or reopen it before starting another change." >&2; exit 1 ;;
-    esac
-  fi
+  local gid
+  goalspec_assert_can_start || exit 1
 
   gid="$(goalspec_new_goal_id)"
   cp "$GOALSPEC_ROOT/runtime/templates/active/state.yaml" "$state_file"

@@ -49,6 +49,17 @@ EOF
     file="${1:-}"
     [ -n "$file" ] || { echo "usage: goalspec judge apply <verdict.yaml>" >&2; exit 2; }
     [ -f "$file" ] || { echo "verdict file not found: $file" >&2; exit 1; }
+    state_file="$GOALSPEC_ROOT/active/state.yaml"
+    state="$(yq e '.status // "no_goal"' "$state_file" 2>/dev/null || echo "no_goal")"
+    [ "$state" != "reopen_required" ] || { echo "judge apply: state is reopen_required; re-review, re-approve, and freeze the revised goal/contract before judging again" >&2; exit 1; }
+    # run-loop stop-loss: refuse verdicts once the loop is capped (Step 05).
+    [ "$(yq e '.run_loop.last_outcome // ""' "$state_file")" != "capped" ] \
+      || { echo "judge apply: run-loop is capped (reached max_iterations); run /goalspec close if Criteria are met, or /goalspec reopen to reset" >&2; exit 1; }
+    # run-loop no-progress: refuse verdicts once the loop is stalled — the
+    # verdict fingerprint and evidence have not changed for stall_threshold rounds,
+    # so further Subagent iteration cannot help. Reopen the spec or close if met.
+    [ "$(yq e '.run_loop.last_outcome // ""' "$state_file")" != "stalled" ] \
+      || { echo "judge apply: run-loop is stalled (no progress for stall_threshold rounds); run /goalspec reopen to revise the spec, or /goalspec close if Criteria are met" >&2; exit 1; }
     if ! errs="$(goalspec_schema_verdict_file "$file" 2>&1 >/dev/null)"; then
       echo "$errs" >&2
       exit 1
@@ -104,6 +115,22 @@ EOF
         echo "judge apply: pass verdict does not cite evidence satisfying required evidence requirements: $missing" >&2
         exit 1
       fi
+      # Tier 2: sensor verification. A pass verdict on reproducible evidence
+      # must be confirmable by re-running the evidence's command now — profile
+      # test/lint/typecheck only run at close, so without this a pass verdict
+      # can rest on the Subagent's self-reported exit_code. Only reproducible
+      # evidence is re-run (side-effect safety); negative verdicts never reach
+      # here. On failure the verdict is rejected (not auto-downgraded) so the
+      # Master stays the sole verdict author.
+      i=0
+      while [ "$i" -lt "$n" ]; do
+        er="$(yq e ".evidence_refs[$i]" "$file")"
+        if ! sensor_err="$(goalspec_sensor_verify_evidence "$er" 2>&1 1>/dev/null)"; then
+          echo "judge apply: pass verdict rejected — $sensor_err" >&2
+          exit 1
+        fi
+        i=$((i+1))
+      done
     fi
     # Append to verdict.yaml
     goalspec_init_list_file "$vf" verdicts
@@ -114,7 +141,61 @@ EOF
     /bin/rm -f "$tmp"
     # Update evidence_hash snapshot in state to track future stale.
     yq e -i ".evidence_hash = \"$(goalspec_evidence_hash)\"" "$GOALSPEC_ROOT/active/state.yaml"
+    # run-loop stop-loss: each Master verdict is one round of the run-loop that
+    # /goalspec run drives. Count it; cap at profile.run_loop.max_iterations
+    # (default 8). At the cap the loop is marked capped so /goalspec run and
+    # further judge apply refuse until a human /goalspec close or /goalspec
+    # reopen resets it (Step 05 / Akshy: exit conditions decided before running).
+    iter="$(yq e '.run_loop.iteration // 0' "$state_file")"
+    iter=$((iter+1))
+    max_iter="$(goalspec_delivery_profile_value '.run_loop.max_iterations' '8')"
+    yq e -i ".run_loop.iteration = $iter | .run_loop.last_at = \"$(goalspec_now)\"" "$state_file"
     echo "verdict applied: $verdict (crit=$crit)"
+    if [ "$iter" -ge "$max_iter" ]; then
+      yq e -i '.run_loop.last_outcome = "capped"' "$state_file"
+      echo "LOOP_CAPPED: run-loop reached max_iterations=$max_iter; further /goalspec run and judge apply will refuse until /goalspec close or /goalspec reopen" >&2
+    else
+      yq e -i '.run_loop.last_outcome = "step"' "$state_file"
+    fi
+    # No-progress detection (stalled): independent of the iteration cap. Fires
+    # when the verdict fingerprint and evidence_hash are both unchanged across N
+    # consecutive judge-apply rounds — the loop is spinning without advancing
+    # any criterion verdict (Oracle: no-progress detection; Ralph Wiggum guard).
+    # Skipped when the cap already fired (cap takes precedence) and exempted when
+    # all required criteria already pass (the loop is done, not stalled).
+    if [ "$(yq e '.run_loop.last_outcome // ""' "$state_file")" != "capped" ]; then
+      fp="$(goalspec_close_verdict_fingerprint)"
+      ehash="$(goalspec_evidence_hash)"
+      prev_fp="$(yq e '.run_loop.last_fingerprint // ""' "$state_file")"
+      prev_ehash="$(yq e '.run_loop.last_evidence_hash // ""' "$state_file")"
+      if [ "$fp" = "$prev_fp" ] && [ "$ehash" = "$prev_ehash" ]; then
+        stall_count="$(yq e '.run_loop.stall_count // 0' "$state_file")"
+        stall_count=$((stall_count+1))
+      else
+        stall_count=0
+      fi
+      yq e -i ".run_loop.stall_count = $stall_count | .run_loop.last_fingerprint = \"$fp\" | .run_loop.last_evidence_hash = \"$ehash\"" "$state_file"
+      stall_threshold="$(goalspec_delivery_profile_value '.run_loop.stall_threshold' '3')"
+      if [ "$stall_count" -ge "$stall_threshold" ] && ! goalspec_close_all_required_pass; then
+        yq e -i '.run_loop.last_outcome = "stalled"' "$state_file"
+        echo "LOOP_STALLED: run-loop made no progress for $stall_count consecutive rounds (verdict fingerprint and evidence unchanged); likely a spec defect — run /goalspec reopen to revise, or /goalspec close if Criteria are actually met" >&2
+      fi
+    fi
+    # Tier 1 (observability) + Self-Harness (advisory). Append one trace entry
+    # for this round, recompute the derived trajectory, and — on a confirmed
+    # failure — emit an advisory improvement candidate (idempotent, human-gated).
+    t1_outcome="$(yq e '.run_loop.last_outcome // "continue"' "$state_file")"
+    t1_why="iteration $iter < max_iterations=$max_iter"
+    case "$t1_outcome" in
+      capped) t1_why="iteration $iter >= max_iterations=$max_iter" ;;
+      stalled) t1_why="no progress for $stall_count consecutive rounds (verdict fingerprint + evidence unchanged)" ;;
+      step|"") t1_outcome="continue" ;;
+    esac
+    goalspec_trace_append "$crit" "$verdict" "$(yq e '.reason' "$file")" "$t1_outcome" "$t1_why"
+    goalspec_trajectory_recompute
+    case "$t1_outcome" in
+      capped|stalled) goalspec_harness_emit_candidate "$t1_outcome" ;;
+    esac
     ;;
   *)
     echo "usage: goalspec judge prompt|apply" >&2; exit 2

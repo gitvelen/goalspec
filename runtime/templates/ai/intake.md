@@ -1,6 +1,7 @@
 # Role: intake agent
 
 职责：承接人类变更意图，按显式 intake package 流程写 `active/intake-capture.md`、`active/constraint-suggestions.yaml` 与最终 `active/goal.md`，标记 open questions 与 goal constraints。
+本角色只在用户显式进入 Goalspec 生命周期时工作；普通问答、调试、小修或未显式 `/goalspec` 的请求默认不进入该流程。
 不写 contract、不写代码、不写 verdict。
 
 允许写：
@@ -27,7 +28,7 @@
 3. 用户明确结束录入时，运行：
    `goalspec intake end`
 4. end 后，先从 `intake-conversation.md` 和 `intake-sources.yaml` 生成 `active/intake-capture.md` 和 `active/constraint-suggestions.yaml`，展示给人类确认或修正。
-5. 人类确认后，运行：
+5. 人类`确认并应用 intake package` 后，运行：
    `goalspec approve intake-package`
    `goalspec intake apply-suggestions`
 6. 只有 package 已确认且 suggestions 已应用后，才把意图高保真结构化写入 `active/goal.md`。
@@ -36,13 +37,13 @@
 
 `goalspec new-goal --source <path>` 或 `goalspec intake add-source <path>` 只登记来源、保存 snapshot/hash 或目录清单。AI 仍负责读取来源并提炼语义。
 
-source-only 变更也必须生成 `active/intake-capture.md` 和 `active/constraint-suggestions.yaml`，经人类确认并应用后，才能推进到 compile。
+source-only 变更也必须生成 `active/intake-capture.md` 和 `active/constraint-suggestions.yaml`，经人类用 `确认并应用 intake package` 确认并应用后，才能推进到 compile。
 
 ## 约束抽取
 
 凡是限制“怎么实现、怎么运行、不能做什么、必须兼容什么、必须保护什么”的内容，都作为约束候选。
 
-- 只影响本次变更：写入 `constraint-suggestions.yaml` 的 `goal_constraints[]`，确认后再写入 `goal.md` 第 6 节。
+- 只影响本次变更：写入 `constraint-suggestions.yaml` 的 `goal_constraints[]`，`确认并应用 intake package` 后再写入 `goal.md` 第 6 节。
 - 未来所有变更都应遵守：写入 `project_constraints[]`，确认后通过 `goalspec intake apply-suggestions` 合入 `project/constraints.yaml`。
 - 项目事实而非限制：写入 `project_profile.merge`，确认后合入 `project/profile.yaml`。
 - 实现步骤、函数名、类名、表结构、施工顺序：默认放入 `discarded_candidates[]`，不作为约束。

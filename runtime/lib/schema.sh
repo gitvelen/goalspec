@@ -63,6 +63,17 @@ goalspec_schema_contract_freeze() {
       echo "criteria ${id}: statement appears to encode implementation steps" >&2
       errs=$((errs+1))
     fi
+    # kind: every criterion must declare its verifiability class.
+    #   machine  — auto-loopable; Master judges from machine-checkable evidence.
+    #   judgment — needs human/Master resolution; the run-loop will not blindly
+    #              retry these (Akshy: judgment work loops only to the degree the
+    #              checker can confirm the result).
+    local kind
+    kind="$(yq e ".criteria[$idx].kind // \"\"" "$cf")"
+    case "$kind" in
+      machine|judgment) ;;
+      *) echo "criteria ${id}: missing or invalid kind (expected machine|judgment)" >&2; errs=$((errs+1)) ;;
+    esac
     # Decidable: must carry evidence_requirement_refs that resolve to defined
     # evidence_requirements, otherwise the Master cannot judge pass/fail from
     # evidence (and judge apply's pass-check would be trivially satisfied).
@@ -128,4 +139,23 @@ goalspec_schema_evidence_id() {
   local found
   found="$(yq e ".evidence[] | select(.id == \"$id\") | .id" "$ef")"
   [ -n "$found" ]
+}
+
+# Structural validation for the fields sensor verification relies on. An entry
+# marked reproducible:true must carry a non-empty command (otherwise the sensor
+# re-run at judge apply cannot confirm it). Prints errors to stderr; 0 if valid.
+goalspec_schema_evidence_entry() {
+  local ef="$GOALSPEC_ROOT/active/evidence.yaml" id="$1"
+  local found repro cmd
+  found="$(yq e ".evidence[] | select(.id == \"$id\") | .id" "$ef" 2>/dev/null)"
+  [ -n "$found" ] || { echo "evidence $id: not found" >&2; return 1; }
+  repro="$(yq e ".evidence[] | select(.id == \"$id\") | .reproducible // false" "$ef")"
+  if [ "$repro" = "true" ]; then
+    cmd="$(yq e ".evidence[] | select(.id == \"$id\") | .command // \"\"" "$ef")"
+    if [ -z "$cmd" ] || [ "$cmd" = "null" ]; then
+      echo "evidence $id: reproducible=true requires a non-empty command" >&2
+      return 1
+    fi
+  fi
+  return 0
 }

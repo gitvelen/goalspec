@@ -52,6 +52,10 @@ EOF
         echo "evidence $id: contract_hash does not match current contract (stale)" >&2
         errs=$((errs+1))
       fi
+      # Tier 2: reproducible evidence must carry a command the sensor can re-run.
+      if ! goalspec_schema_evidence_entry "$id" 2>&1; then
+        errs=$((errs+1))
+      fi
       i=$((i+1))
     done
     [ "$errs" -eq 0 ] && echo "evidence: $n entries, all contract_hash current"

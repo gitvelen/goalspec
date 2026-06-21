@@ -16,6 +16,7 @@ constraint_suggestions_applied_hash: null
 close_package_hash: null
 blocked_reason: null
 reopen_reason: null
+reopen_impact_hash: null
 intake_session:
   status: not_started
   started_at: null
@@ -33,5 +34,24 @@ close:
   base_branch: null
   remote: null
   pr_url: null
+  delivery_mode: github_pr
   failed_at: null
   failure_reason: null
+run_loop:
+  iteration: 0
+  last_outcome: null
+  last_at: null
+  stall_count: 0
+  last_fingerprint: null
+  last_evidence_hash: null
+  # DERIVED summary of the loop's reasoning trail (Loop Engineering: state must
+  # not live only in context). Recomputed by goalspec_trajectory_recompute on
+  # every judge-apply; reset by reopen/close alongside the counters above.
+  # Fields: tried_paths / failed_approaches hold "CRIT-xxx=verdict" pairs;
+  # current_blocker is the latest non-pass criterion + reason; next_step is the
+  # next unjudged or non-pass required criterion id.
+  trajectory:
+    tried_paths: []
+    failed_approaches: []
+    current_blocker: ""
+    next_step: ""

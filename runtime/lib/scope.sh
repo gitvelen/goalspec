@@ -87,16 +87,13 @@ goalspec_scope_check_run() {
   local f
   while IFS= read -r f; do
     [ -z "$f" ] && continue
-    # Global forbidden (frozen contract / project / history).
-    # These authority files cannot be modified by anyone after freeze without
-    # an explicit reopen.
+    # Frozen contract authority file. freeze writes contract_hash into
+    # contract.yaml itself, which makes the file permanently "dirty" relative to
+    # base_revision. Distinguish that benign self-write from a real edit by
+    # comparing the current content hash to the hash recorded at freeze time.
     if [ "$contract_status" = "frozen" ]; then
       case "$f" in
         .goalspec/active/contract.yaml)
-          # freeze writes contract_hash into contract.yaml itself, which makes
-          # the file permanently "dirty" relative to base_revision. Distinguish
-          # that benign self-write from a real Subagent edit by comparing the
-          # current content hash to the hash recorded at freeze time.
           local rec_chash
           rec_chash="$(goalspec_state_get 'contract_hash')"
           if [ -n "$rec_chash" ] && [ "$rec_chash" != "null" ] && [ "$rec_chash" = "$(goalspec_contract_hash)" ]; then
@@ -106,6 +103,20 @@ goalspec_scope_check_run() {
           fi
           continue
           ;;
+      esac
+    fi
+    # Subagent-only forbidden authority files. The executor (Subagent) must never
+    # directly write the Master/approval files, the long-term project memory, or
+    # the history archive. The close flow (role=system) legitimately stages
+    # .goalspec/project/** and .goalspec/history/** per V2 §12 (approved memory
+    # patch + history archive), so those are exempt for the system role.
+    if [ "$role" = "subagent" ] && [ "$contract_status" = "frozen" ]; then
+      case "$f" in
+        .goalspec/active/verdict.yaml|\
+        .goalspec/active/memory-patch.yaml|\
+        .goalspec/active/reviews.yaml|\
+        .goalspec/active/regressions.yaml|\
+        .goalspec/active/harness-improvement-candidate.yaml|\
         .goalspec/project/*|\
         .goalspec/history/*)
           forbidden_hits="${forbidden_hits}$f "
@@ -113,23 +124,7 @@ goalspec_scope_check_run() {
           ;;
       esac
     fi
-    # Subagent-only forbidden: the Subagent must never directly write the
-    # Master/approval authority files. (The Master writes verdict via
-    # `judge apply`; memory-patch is approved via `approve memory-patch`.)
-    if [ "$role" = "subagent" ] && [ "$contract_status" = "frozen" ]; then
-      case "$f" in
-        .goalspec/active/verdict.yaml|\
-        .goalspec/active/memory-patch.yaml|\
-        .goalspec/active/reviews.yaml|\
-        .goalspec/active/regressions.yaml)
-          forbidden_hits="${forbidden_hits}$f "
-          continue
-          ;;
-      esac
-    fi
-    case "$f" in
-      .goalspec/*) continue ;;
-    esac
+    if goalspec_git_is_framework_file "$f"; then continue; fi
     # forbidden by any contract forbidden_paths
     local pat hit_forbidden=0
     local oldifs="$IFS"

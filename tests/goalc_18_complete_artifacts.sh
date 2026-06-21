@@ -31,7 +31,7 @@ evidence:
     contract_hash: "$CHASH"
     criteria_refs: [CRIT-001, CRIT-FINAL-001]
     evidence_requirement_refs: [EVIDREQ-001]
-    command: t
+    command: "true"
     exit_code: 0
     artifact_paths: []
     provider_source: not_required

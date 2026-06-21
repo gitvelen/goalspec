@@ -18,7 +18,7 @@ fi
 # shellcheck disable=SC1091
 . "$GOALSPEC_LIB_DIR/yq.sh"
 # shellcheck disable=SC1091
-for lib in common hash state stale schema git scope intake validate prompt close git_delivery; do
+for lib in common hash state stale schema git scope intake validate prompt close git_delivery sensor trace; do
   . "$GOALSPEC_LIB_DIR/${lib}.sh"
 done
 

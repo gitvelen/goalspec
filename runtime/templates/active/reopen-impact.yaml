@@ -1,0 +1,30 @@
+status: pending
+reopen_reason: null
+contract_hash_before_reopen: null
+evidence_hash_before_reopen: null
+goal_hash_before_reopen: null
+criteria_hash_before_reopen: null
+constraints_hash_before_reopen: null
+analysis:
+  summary: ""
+  goal:
+    changed: false
+    change_type: none
+    notes: ""
+  constraints:
+    changed: false
+    global_invalidation: false
+    notes: ""
+  criteria:
+    unchanged: []
+    modified: []
+    added: []
+    removed: []
+  reuse:
+    code_reusable: []
+    evidence_to_refresh: []
+    rejudge_only: []
+    reimplement_needed: []
+blocking_questions: []
+reviewed_by_human: false
+reviewed_at: null

@@ -29,14 +29,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# Block if there's already an active, not-closed goal.
-if [ -f "$state_file" ]; then
-  cur_status="$(yq e '.status' "$state_file")"
-  if [ "$cur_status" != "closed" ] && [ "$cur_status" != "completed" ] && [ -n "$(yq e '.active_goal_id // ""' "$state_file")" ]; then
-    echo "goalspec new-goal: an active goal already exists (status=$cur_status). Close or reopen it first." >&2
-    exit 1
-  fi
-fi
+# V2 §11: a new goal may begin only from no_goal or closed.
+goalspec_assert_can_start || exit 1
 
 goal_id="$(goalspec_new_goal_id)"
 
@@ -50,6 +44,10 @@ cp "$GOALSPEC_ROOT/runtime/templates/active/intake-sources.yaml" "$GOALSPEC_ROOT
 cp "$GOALSPEC_ROOT/runtime/templates/active/intake-conversation.md" "$GOALSPEC_ROOT/active/intake-conversation.md"
 cp "$GOALSPEC_ROOT/runtime/templates/active/intake-capture.md" "$GOALSPEC_ROOT/active/intake-capture.md"
 cp "$GOALSPEC_ROOT/runtime/templates/active/constraint-suggestions.yaml" "$GOALSPEC_ROOT/active/constraint-suggestions.yaml"
+# Reset the Self-Harness advisory candidate (init copies the template into
+# active/, and a prior goal's cap/stall may have populated emitted_at; a fresh
+# goal must start with an un-emitted skeleton so emit does not skip it).
+cp "$GOALSPEC_ROOT/runtime/templates/active/harness-improvement-candidate.yaml" "$GOALSPEC_ROOT/active/harness-improvement-candidate.yaml"
 
 # Reset goal.md from template (only if it doesn't already have intent).
 if [ ! -f "$GOALSPEC_ROOT/active/goal.md" ] || ! grep -q "## 1. Intent" "$GOALSPEC_ROOT/active/goal.md" 2>/dev/null; then

@@ -75,10 +75,16 @@ cat <<EOF
 draft contract written: $cf
 
 The compiler agent should now edit $cf to fill in:
-  - criteria (incl. one final: true; each may carry evidence_requirement_refs)
+  - criteria (each must declare kind: machine|judgment — machine auto-loops
+             under the run-loop, judgment needs human/Master resolution; incl.
+             one final: true; each may carry evidence_requirement_refs)
   - evidence_requirements
   - constraints (active project + confirmed goal + confirmed compile)
-  - allowed_paths / forbidden_paths (the execution scope boundary)
+  - allowed_paths / forbidden_paths (the execution scope boundary).
+    Write allowed_paths WIDE with globs (e.g. 'src/**', 'pkg/**'): scope-check
+    at close rejects any business file not under allowed_paths, and a frozen
+    contract cannot be widened without /goalspec reopen. Reserve forbidden_paths
+    for the precise "must not touch" set.
   - required_regressions (from project/regression-suite.yaml)
 
 When done: 'goalspec review prompt contract', apply a passing contract review,

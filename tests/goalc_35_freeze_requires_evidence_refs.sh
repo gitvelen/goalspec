@@ -21,7 +21,7 @@ try_freeze_fail() {
   local label="$1"
   "$REPO_GS" review apply "$tmp/contract-pass.yaml" >/dev/null 2>&1 || true
   "$REPO_GS" approve contract >/dev/null 2>&1 || true
-  if "$REPO_GS" freeze >/tmp/goalc35.err 2>&1; then
+  if "$REPO_GS" freeze >"$TESTS_TMP_ROOT/goalc35.err" 2>&1; then
     bad "freeze succeeded: $label"
   else
     ok "freeze blocked: $label"

@@ -1,0 +1,30 @@
+# harness-improvement-candidate.yaml — advisory artifact emitted when the
+# run-loop hits a confirmed failure (capped or stalled). The framework writes
+# only the skeleton below (status, failure_kind, task_signature, failure_step,
+# rule_version). proposed_target / prediction / reviewed_by_human / promoted are
+# left for a human (optionally Master) to fill. Promotion is HUMAN-GATED: the
+# framework NEVER auto-applies the proposed change, mirroring reopen-impact.yaml's
+# reviewed_by_human pattern (Loop Engineering: let the loop leave evidence first).
+status: proposed               # proposed | under_review | promoted | rejected
+emitted_at: null
+failure_kind: null             # capped | stalled
+task_signature:
+  goal_id: null
+  goal_type: ""                # first line of goal.md Intent
+  repeatedly_failing_criteria: []   # required criteria whose latest verdict is non-pass
+failure_step:
+  iteration: null              # run_loop.iteration at failure
+  refused_criterion: null      # last trace entry's criterion_ref ("" if none)
+  validator_reason: ""         # last trace entry's stop_check.why
+rule_version:
+  contract_hash: null          # frozen basis the failure ran under
+  prompt_hash: null            # goal-driven-prompt.md hash
+  master_md_hash: null         # runtime/templates/ai/master.md hash (rule-version provenance)
+proposed_target:
+  file: ""                     # which template/rule file the change targets (LEFT FOR MASTER/HUMAN)
+  diff: ""                     # proposed diff (LEFT FOR MASTER/HUMAN)
+prediction: ""                 # falsifiable statement (LEFT FOR MASTER/HUMAN)
+reviewed_by_human: false
+reviewed_at: null
+promoted: false                # only a human may set this true, after regression passes
+promoted_at: null

@@ -5,6 +5,12 @@ set -uo pipefail
 
 fail() { echo "complete blocked: $*" >&2; exit 1; }
 
+state_file="$GOALSPEC_ROOT/active/state.yaml"
+state="$(yq e '.status // "no_goal"' "$state_file" 2>/dev/null || echo "no_goal")"
+if [ "$state" = "reopen_required" ]; then
+  fail "state is reopen_required; review the reopen impact, revise goal.md and/or contract.yaml, then re-review, re-approve, and freeze before completion can resume"
+fi
+
 if ! gate_err="$(goalspec_close_completion_gate 2>&1)"; then
   fail "$gate_err"
 fi

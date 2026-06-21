@@ -195,7 +195,7 @@ evidence:
     contract_hash: "$CHASH"
     criteria_refs: [CRIT-001]
     evidence_requirement_refs: [EVIDREQ-001]
-    command: "browser-automation"
+    command: "true"
     exit_code: 0
     artifact_paths: [".goalspec/artifacts/EV-001.txt"]
     provider_source: not_required

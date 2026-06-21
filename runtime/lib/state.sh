@@ -5,7 +5,8 @@
 # States: no_goal -> intake_collecting -> spec_drafting ->
 # awaiting_human_confirmation -> ready_to_run -> running -> ready_to_close ->
 # closing -> closed. blocked / reopen_required are recovery extensions reachable
-# from anywhere. Legacy states remain accepted as migration aliases.
+# from anywhere. frozen_ready / prompt_ready are accepted as ready_to_run aliases
+# for the freeze -> run handoff.
 goalspec_state_valid_transition() {
   local from="$1" to="$2"
   case "$from:$to" in
@@ -38,15 +39,7 @@ goalspec_state_valid_transition() {
     prompt_ready:ready_to_run|\
     prompt_ready:awaiting_human_confirmation|\
     prompt_ready:ready_to_close|\
-    running:judging_or_continuing|\
-    judging_or_continuing:running|\
     running:prompt_ready|\
-    running:completed|\
-    running:closed|\
-    judging_or_continuing:ready_to_close|\
-    judging_or_continuing:completed|\
-    completed:closed|\
-    completed:spec_drafting|\
     *:blocked|\
     *:reopen_required|\
     blocked:no_goal|\
@@ -59,6 +52,20 @@ goalspec_state_valid_transition() {
     reopen_required:awaiting_human_confirmation|\
     reopen_required:ready_to_run) return 0 ;;
     *) return 1 ;;
+  esac
+}
+
+# V2 §11 / §10: a new goal may begin only from no_goal or closed. Any other
+# status means an active change is in flight and must be closed (or reopened)
+# first — it must never be silently overwritten. Returns 0 if a new goal may
+# start, 1 (with a user-facing message) otherwise.
+goalspec_assert_can_start() {
+  local state_file="$GOALSPEC_ROOT/active/state.yaml" cur
+  [ -f "$state_file" ] || return 0
+  cur="$(yq e '.status // "no_goal"' "$state_file" 2>/dev/null || echo "no_goal")"
+  case "$cur" in
+    no_goal|closed) return 0 ;;
+    *) echo "goalspec: another goal is active (status=$cur). Run /goalspec close to close it, or /goalspec reopen <reason> if its spec is wrong." >&2; return 1 ;;
   esac
 }
 
