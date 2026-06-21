@@ -48,6 +48,7 @@ git init                  # 如果项目还不是 git 仓库
 ```
 
 这会创建 `.goalspec/`，并把受管的 Goalspec 指导块写入 `AGENTS.md` 和 `CLAUDE.md`。
+根目录指导块只保留薄路由和硬门禁摘要；详细角色规则在 `.goalspec/ai/core.md`。
 
 可选的 AI 适配器安装：
 

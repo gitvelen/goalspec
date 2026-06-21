@@ -12,6 +12,9 @@ R="$FRAMEWORK/README.md"
 for f in "$T/AGENTS.md" "$T/CLAUDE.md"; do
   grep -qi 'explicit opt-in' "$f" && ok "$f says explicit opt-in" || bad "$f missing explicit opt-in"
   grep -qi 'do not self-upgrade casual requests' "$f" && ok "$f forbids self-upgrade" || bad "$f missing self-upgrade rule"
+  grep -q 'failure means incomplete' "$f" && ok "$f has criteria failure test" || bad "$f missing criteria failure test"
+  grep -q 'observable result' "$f" && ok "$f has criteria observable result" || bad "$f missing criteria observable result"
+  grep -q 'evidence path' "$f" && ok "$f has criteria evidence path" || bad "$f missing criteria evidence path"
 done
 
 grep -q '显式启用' "$T/ai/core.md" && ok "core.md says 显式启用" || bad "core.md missing 显式启用"
