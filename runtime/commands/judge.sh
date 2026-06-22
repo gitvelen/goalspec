@@ -79,11 +79,15 @@ EOF
     # run-loop stop-loss: refuse verdicts once the loop is capped (Step 05).
     [ "$(yq e '.run_loop.last_outcome // ""' "$state_file")" != "capped" ] \
       || { echo "judge apply: run-loop is capped (reached max_iterations); run /goalspec close if Criteria are met, or /goalspec reopen to reset" >&2; exit 1; }
-    # run-loop no-progress: refuse verdicts once the loop is stalled — the
-    # verdict fingerprint and evidence have not changed for stall_threshold rounds,
-    # so further Subagent iteration cannot help. Reopen the spec or close if met.
-    [ "$(yq e '.run_loop.last_outcome // ""' "$state_file")" != "stalled" ] \
-      || { echo "judge apply: run-loop is stalled (no progress for stall_threshold rounds); run /goalspec reopen to revise the spec, or /goalspec close if Criteria are met" >&2; exit 1; }
+    # Only current stalled states block. Older releases stored a coarser
+    # fingerprint, so a stale-pass basis may become obsolete after refreeze.
+    if [ "$(yq e '.run_loop.last_outcome // ""' "$state_file")" = "stalled" ]; then
+      if goalspec_run_loop_stalled_current; then
+        echo "judge apply: run-loop is stalled (no progress for stall_threshold rounds); run /goalspec reopen to revise the spec, or /goalspec close if Criteria are met" >&2
+        exit 1
+      fi
+      goalspec_run_loop_clear_obsolete_stalled
+    fi
     if ! errs="$(goalspec_schema_verdict_file "$file" 2>&1 >/dev/null)"; then
       echo "$errs" >&2
       exit 1

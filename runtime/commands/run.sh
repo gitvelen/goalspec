@@ -28,7 +28,10 @@ fi
 # recovery hint steers toward reopen rather than just "raise the cap".
 if [ "$(yq e '.run_loop.last_outcome // ""' "$state_file")" = "stalled" ] \
   && ! goalspec_close_completion_gate >/dev/null 2>&1; then
-  deny "run-loop is stalled (no progress for stall_threshold rounds — likely a spec defect); run /goalspec reopen to revise, or /goalspec close if Criteria are met"
+  if goalspec_run_loop_stalled_current; then
+    deny "run-loop is stalled (no progress for stall_threshold rounds — likely a spec defect); run /goalspec reopen to revise, or /goalspec close if Criteria are met"
+  fi
+  goalspec_run_loop_clear_obsolete_stalled
 fi
 
 [ -f "$cf" ] || deny "contract.yaml is missing; Goal, Criteria, and Constraints are not frozen"

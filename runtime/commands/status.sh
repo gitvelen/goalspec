@@ -143,7 +143,7 @@ fi
 # run-loop no-progress signal: stalled (verdict fingerprint + evidence unchanged
 # for stall_threshold rounds) steers toward reopen — it signals a spec defect,
 # not merely an exhausted budget.
-if [ "$(yq e '.run_loop.last_outcome // ""' "$state_file" 2>/dev/null)" = "stalled" ]; then
+if goalspec_run_loop_stalled_current; then
   NEEDS_HUMAN_CONFIRMATION="true"
   NEXT_USER_ACTION="Run-loop stalled: no progress for stall_threshold consecutive rounds (verdict fingerprint and evidence unchanged) — likely a spec defect. Run /goalspec reopen <reason> to revise the Goal/Criteria/Constraints, or /goalspec close if Criteria are actually met."
 fi

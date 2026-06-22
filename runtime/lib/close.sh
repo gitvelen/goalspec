@@ -42,18 +42,43 @@ goalspec_close_criterion_has_fresh_pass() {
   goalspec_close_criterion_pass_blocker "$1" >/dev/null
 }
 
-# Fingerprint of the current verdict state: each criterion's latest verdict
-# concatenated in contract order. Used by the run-loop no-progress detector
-# (stalled) — if this fingerprint and the evidence_hash are both unchanged across
-# N consecutive judge-apply rounds, the loop is making no progress.
+# Fingerprint of the current verdict state in contract order. It includes the
+# latest verdict basis and fresh-pass blocker so stale pass -> fresh pass counts
+# as real progress after reopen/refreeze.
 goalspec_close_verdict_fingerprint() {
-  local cid v fp=""
+  local cid verdict v_chash v_ehash blocker completion fp=""
   while IFS= read -r cid; do
     [ -z "$cid" ] && continue
-    v="$(goalspec_close_latest_verdict_field "$cid" verdict)"
-    fp="${fp}${cid}=${v}|"
+    verdict="$(goalspec_close_latest_verdict_field "$cid" verdict)"
+    v_chash="$(goalspec_close_latest_verdict_field "$cid" contract_hash)"
+    v_ehash="$(goalspec_close_latest_verdict_field "$cid" evidence_hash)"
+    if blocker="$(goalspec_close_criterion_pass_blocker "$cid")"; then
+      completion="fresh_pass"
+    else
+      completion="$blocker"
+    fi
+    fp="${fp}${cid}:verdict=${verdict}:contract=${v_chash}:evidence=${v_ehash}:completion=${completion}|"
   done <<<"$(goalspec_close_required_criteria_ids)"
   printf '%s' "$fp"
+}
+
+goalspec_run_loop_stalled_current() {
+  local state_file="$GOALSPEC_ROOT/active/state.yaml" fp ehash prev_fp prev_ehash
+  [ "$(yq e '.run_loop.last_outcome // ""' "$state_file" 2>/dev/null)" = "stalled" ] || return 1
+  prev_fp="$(yq e '.run_loop.last_fingerprint // ""' "$state_file" 2>/dev/null || echo "")"
+  prev_ehash="$(yq e '.run_loop.last_evidence_hash // ""' "$state_file" 2>/dev/null || echo "")"
+  [ -n "$prev_fp" ] && [ "$prev_fp" != "null" ] || return 0
+  [ -n "$prev_ehash" ] && [ "$prev_ehash" != "null" ] || return 0
+  fp="$(goalspec_close_verdict_fingerprint)"
+  ehash="$(goalspec_evidence_hash)"
+  [ "$fp" = "$prev_fp" ] && [ "$ehash" = "$prev_ehash" ]
+}
+
+goalspec_run_loop_clear_obsolete_stalled() {
+  local state_file="$GOALSPEC_ROOT/active/state.yaml"
+  [ "$(yq e '.run_loop.last_outcome // ""' "$state_file" 2>/dev/null)" = "stalled" ] || return 0
+  goalspec_run_loop_stalled_current && return 0
+  yq e -i '.run_loop.last_outcome = null | .run_loop.stall_count = 0' "$state_file"
 }
 
 goalspec_close_all_required_pass() {
