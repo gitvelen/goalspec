@@ -105,7 +105,7 @@ goalspec_update_existing() {
   chmod +x "$dest_goalspec/goalspec"
 
   mkdir -p "$dest_goalspec/history" "$dest_goalspec/artifacts" "$dest_goalspec/artifacts/intake" "$dest_goalspec/active" "$dest_goalspec/project"
-  for f in intake-sources.yaml intake-conversation.md intake-capture.md constraint-suggestions.yaml goal.yaml criteria.yaml constraints.yaml goal-driven-prompt.md close-package.yaml close-package.md reopen-impact.yaml; do
+  for f in intake-sources.yaml intake-conversation.md intake-capture.md constraint-suggestions.yaml goal.yaml criteria.yaml constraints.yaml goal-driven-prompt.md close-package.yaml close-package.md reopen-impact.yaml scope-amendments.yaml; do
     if [ ! -f "$dest_goalspec/active/$f" ]; then
       cp "$SRC_ROOT/runtime/templates/active/$f" "$dest_goalspec/active/$f"
     fi
@@ -116,6 +116,7 @@ goalspec_update_existing() {
       .intake_package_hash = (.intake_package_hash // null) |
       .constraint_suggestions_applied_hash = (.constraint_suggestions_applied_hash // null) |
       .close_package_hash = (.close_package_hash // null) |
+      .scope_hash = (.scope_hash // null) |
       .reopen_impact_hash = (.reopen_impact_hash // null) |
       .intake_session = (.intake_session // {"status":"not_started","started_at":null,"ended_at":null}) |
       .intake_session.status = (.intake_session.status // "not_started") |

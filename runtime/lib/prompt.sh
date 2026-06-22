@@ -56,10 +56,11 @@ goalspec_prompt_generate() {
   goalspec_prompt_write_frozen_artifacts
   local sf="$GOALSPEC_ROOT/active/state.yaml"
   local pf="$GOALSPEC_ROOT/active/goal-driven-prompt.md"
-  local goal_hash criteria_hash constraints_hash generated_at confirmed_at
+  local goal_hash criteria_hash constraints_hash scope_hash generated_at confirmed_at
   goal_hash="$(yq e '.goal_hash' "$sf")"
   criteria_hash="$(yq e '.criteria_hash' "$sf")"
   constraints_hash="$(yq e '.constraints_hash' "$sf")"
+  scope_hash="$(goalspec_scope_hash)"
   generated_at="$(yq e '.prompt_generated_at' "$sf")"
   confirmed_at="$(yq e '.confirmed_at' "$sf")"
 
@@ -68,6 +69,7 @@ goalspec_prompt_generate() {
 goal_hash: "$goal_hash"
 criteria_hash: "$criteria_hash"
 constraints_hash: "$constraints_hash"
+scope_hash: "$scope_hash"
 prompt_hash: null
 generated_at: "$generated_at"
 confirmed_at: "$confirmed_at"
@@ -99,6 +101,16 @@ $(yq e '.optional_criteria' "$GOALSPEC_ROOT/active/criteria.yaml")
 
 \`\`\`yaml
 $(yq e '.constraints' "$GOALSPEC_ROOT/active/constraints.yaml")
+\`\`\`
+
+## Effective Execution Scope
+
+\`\`\`yaml
+allowed_paths:
+$(goalspec_scope_allowed_patterns | sort -u | sed 's/^/  - /')
+forbidden_paths:
+$(goalspec_scope_forbidden_patterns | sort -u | sed 's/^/  - /')
+scope_hash: "$scope_hash"
 \`\`\`
 
 ## Control Rules
@@ -199,4 +211,5 @@ EOF
   phash="$(goalspec_prompt_hash)"
   sed -i "s/^prompt_hash: null/prompt_hash: \"$phash\"/" "$pf"
   yq e -i ".prompt_hash = \"$phash\"" "$sf"
+  yq e -i ".scope_hash = \"$scope_hash\"" "$sf"
 }

@@ -81,10 +81,11 @@ The compiler agent should now edit $cf to fill in:
   - evidence_requirements
   - constraints (active project + confirmed goal + confirmed compile)
   - allowed_paths / forbidden_paths (the execution scope boundary).
-    Write allowed_paths WIDE with globs (e.g. 'src/**', 'pkg/**'): scope-check
-    at close rejects any business file not under allowed_paths, and a frozen
-    contract cannot be widened without /goalspec reopen. Reserve forbidden_paths
-    for the precise "must not touch" set.
+    allowed_paths are authorized impact domains, not a prediction of exact files.
+    Write them WIDE with globs (e.g. 'src/**', 'tests/**', 'pkg/**'). During
+    implementation, a human may run 'goalspec scope amend --allow <glob>
+    --reason <why>' for same-Goal expansion without changing Criteria. Reserve
+    forbidden_paths for the precise "must not touch" set.
   - required_regressions (from project/regression-suite.yaml)
 
 When done: 'goalspec review prompt contract', apply a passing contract review,

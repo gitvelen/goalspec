@@ -111,7 +111,7 @@ goalspec_close_write_package() {
   local md="$GOALSPEC_ROOT/active/close-package.md"
   local state_file="$GOALSPEC_ROOT/active/state.yaml"
   local goal_id goal_summary base changed_business changed_goalspec now
-  local chash ehash vhash mhash changed_hash suggested_hash cphash
+  local chash shash ehash vhash mhash changed_hash suggested_hash cphash
   local delivery_mode delivery_remote delivery_base creates_pr
   local pf vtmp
   goal_id="$(yq e '.active_goal_id // ""' "$state_file")"
@@ -120,6 +120,7 @@ goalspec_close_write_package() {
   base="$(yq e '.git.base_revision // ""' "$state_file")"
   now="$(goalspec_now)"
   chash="$(goalspec_contract_hash)"
+  shash="$(goalspec_scope_hash)"
   ehash="$(goalspec_evidence_hash)"
   vhash="$(goalspec_verdict_hash)"
   mhash="$(goalspec_memory_patch_hash)"
@@ -169,6 +170,19 @@ YML
 YML
   printf '%s\n' "$changed_goalspec" | sed '/^$/d; s/^/    - /' >> "$cpf"
   cat >> "$cpf" <<YML
+scope:
+  allowed_paths:
+YML
+  goalspec_scope_allowed_patterns | sort -u | sed 's/^/    - /' >> "$cpf"
+  cat >> "$cpf" <<YML
+  forbidden_paths:
+YML
+  goalspec_scope_forbidden_patterns | sort -u | sed 's/^/    - /' >> "$cpf"
+  cat >> "$cpf" <<YML
+  amendments:
+YML
+  yq e '.amendments // []' "$GOALSPEC_ROOT/active/scope-amendments.yaml" 2>/dev/null | sed 's/^/    /' >> "$cpf"
+  cat >> "$cpf" <<YML
 memory_patch:
   patches:
 YML
@@ -193,6 +207,7 @@ risks:
   follow_ups: []
 hashes:
   contract_hash: "$chash"
+  scope_hash: "$shash"
   evidence_hash: "$ehash"
   verdict_hash: "$vhash"
   memory_patch_hash: "$mhash"
@@ -224,6 +239,7 @@ YML
 Goal: $goal_summary
 
 - Contract hash: $chash
+- Scope hash: $shash
 - Evidence hash: $ehash
 - Verdict hash: $vhash
 - Memory patch hash: $mhash
@@ -243,6 +259,7 @@ goalspec_close_validate_package_hashes() {
   [ -f "$cpf" ] || { echo "close package missing"; return 1; }
   local bad=""
   [ "$(yq e '.hashes.contract_hash // ""' "$cpf")" = "$(goalspec_contract_hash)" ] || bad="${bad}contract_hash "
+  [ "$(yq e '.hashes.scope_hash // ""' "$cpf")" = "$(goalspec_scope_hash)" ] || bad="${bad}scope_hash "
   [ "$(yq e '.hashes.evidence_hash // ""' "$cpf")" = "$(goalspec_evidence_hash)" ] || bad="${bad}evidence_hash "
   [ "$(yq e '.hashes.verdict_hash // ""' "$cpf")" = "$(goalspec_verdict_hash)" ] || bad="${bad}verdict_hash "
   [ "$(yq e '.hashes.memory_patch_hash // ""' "$cpf")" = "$(goalspec_memory_patch_hash)" ] || bad="${bad}memory_patch_hash "
@@ -261,6 +278,7 @@ goalspec_close_completion_gate() {
   [ "$(yq e '.goal_artifact_hash // ""' "$state_file")" = "$(goalspec_goal_artifact_hash)" ] || { echo "goal artifact changed since freeze; re-freeze"; return 1; }
   [ "$(yq e '.criteria_hash // ""' "$state_file")" = "$(goalspec_criteria_hash)" ] || { echo "criteria changed since freeze; re-freeze"; return 1; }
   [ "$(yq e '.constraints_hash // ""' "$state_file")" = "$(goalspec_constraints_hash)" ] || { echo "constraints changed since freeze; re-freeze"; return 1; }
+  goalspec_scope_ensure_state_hash || { echo "effective scope changed since last approval; run goalspec scope amend with a reason"; return 1; }
   [ "$(goalspec_close_blocking_questions_count)" -eq 0 ] || { echo "blocking questions unresolved"; return 1; }
   # Defensive: require at least one criterion, so an empty/unparseable criteria
   # table cannot make the pass-check vacuously succeed and trigger a close package.
@@ -311,7 +329,7 @@ goalspec_close_next_history_version() {
 goalspec_close_archive_active() {
   local vname="$1" hdir="$GOALSPEC_ROOT/history/$vname" f
   mkdir -p "$hdir"
-  for f in goal.md goal.yaml criteria.yaml constraints.yaml contract.yaml goal-driven-prompt.md evidence.yaml verdict.yaml trace.yaml regressions.yaml memory-patch.yaml questions.yaml reviews.yaml state.yaml close-package.yaml close-package.md reopen-impact.yaml harness-improvement-candidate.yaml; do
+  for f in goal.md goal.yaml criteria.yaml constraints.yaml contract.yaml goal-driven-prompt.md evidence.yaml verdict.yaml trace.yaml regressions.yaml memory-patch.yaml questions.yaml reviews.yaml state.yaml close-package.yaml close-package.md reopen-impact.yaml harness-improvement-candidate.yaml scope-amendments.yaml; do
     [ -f "$GOALSPEC_ROOT/active/$f" ] && cp "$GOALSPEC_ROOT/active/$f" "$hdir/$f"
   done
 }

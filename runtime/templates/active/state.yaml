@@ -3,6 +3,7 @@ status: no_goal
 goal_hash: null
 goal_artifact_hash: null
 contract_hash: null
+scope_hash: null
 criteria_hash: null
 constraints_hash: null
 evidence_hash: null

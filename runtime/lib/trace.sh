@@ -143,7 +143,7 @@ goalspec_loop_contract_render() {
   local name goal scope tools max_iter stall_thresh iter last_outcome traj
   name="$(yq e '.active_goal_id // "unnamed"' "$sf")"
   goal="$(awk '/^## .*Intent/ { in_intent=1; next } /^## / && in_intent { exit } in_intent && NF { print; exit }' "$gf" 2>/dev/null || echo "")"
-  scope="$(yq e -o=t '.allowed_paths[]' "$cf" 2>/dev/null | paste -sd, -)"
+  scope="$(goalspec_scope_allowed_patterns | paste -sd, -)"
   tools="$(yq e '(.commands.test // []) + (.commands.build // []) + (.commands.lint // []) + (.commands.typecheck // []) | join(", ")' "$pf" 2>/dev/null || echo "")"
   max_iter="$(goalspec_delivery_profile_value '.run_loop.max_iterations' '8')"
   stall_thresh="$(goalspec_delivery_profile_value '.run_loop.stall_threshold' '3')"

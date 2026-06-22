@@ -58,6 +58,28 @@ goalspec_contract_hash() {
   echo "sha256:${h}"
 }
 
+goalspec_scope_hash() {
+  local cf="$GOALSPEC_ROOT/active/contract.yaml" af="$GOALSPEC_ROOT/active/scope-amendments.yaml"
+  local stripped h
+  stripped="$(
+    {
+      printf 'allowed:\n'
+      goalspec_scope_allowed_patterns | sort -u | sed 's/^/  - /'
+      printf 'forbidden:\n'
+      [ -f "$cf" ] && yq e -o=t '.forbidden_paths[]' "$cf" 2>/dev/null | sort -u | sed 's/^/  - /'
+      printf 'amendments:\n'
+      if [ -f "$af" ]; then
+        yq e -o=yaml '[.amendments[]? | select(.status == "approved") | del(.old_scope_hash, .new_scope_hash)]' "$af" 2>/dev/null | sed 's/^/  /'
+      else
+        printf '  []\n'
+      fi
+    } 2>/dev/null
+  )"
+  if [ -z "$stripped" ]; then echo "sha256:empty"; return 0; fi
+  h="$(printf '%s' "$stripped" | sha256sum | awk '{print $1}')"
+  echo "sha256:${h}"
+}
+
 goalspec_criteria_hash() {
   goalspec_hash_file "$GOALSPEC_ROOT/active/criteria.yaml"
 }

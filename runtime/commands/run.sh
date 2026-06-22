@@ -46,6 +46,7 @@ fi
 [ "$(yq e '.criteria_hash // ""' "$state_file")" = "$(goalspec_criteria_hash)" ] || deny "frozen Criteria are stale"
 [ "$(yq e '.constraints_hash // ""' "$state_file")" = "$(goalspec_constraints_hash)" ] || deny "frozen Constraints are stale"
 [ "$(yq e '.contract_hash // ""' "$state_file")" = "$(goalspec_contract_hash)" ] || deny "frozen contract is stale"
+goalspec_scope_ensure_state_hash || deny "effective scope changed since last approval; run goalspec scope amend with a reason"
 
 nblock="$(yq e '[.questions[] | select(.blocking == true and .status != "resolved")] | length' "$qf" 2>/dev/null || echo 0)"
 [ "${nblock:-0}" -eq 0 ] || deny "blocking questions are unresolved"

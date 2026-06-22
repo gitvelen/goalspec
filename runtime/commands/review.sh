@@ -57,7 +57,7 @@ Verify:
   - each criterion is decidable and not too weak/strong/vague.
   - each criterion's evidence_requirement_refs can prove that criterion.
   - allowed_paths / forbidden_paths express the execution scope boundary;
-    allowed_paths are wide globs (a too-narrow set forces a mid-change reopen),
+    allowed_paths are authorized impact domains, not exact file predictions;
     forbidden_paths are the precise "must not touch" set.
   - locked regressions are injected as required evidence.
   - there is a final criterion.

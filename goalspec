@@ -39,6 +39,9 @@ Commands:
   close                         Confirm the close package, apply memory, archive
                                 history, commit, push, and open a PR (-> closed)
   reopen [reason]               Reopen when frozen artifacts are wrong
+  scope amend --allow <glob> --reason <text>
+                                Human-approved expansion of the current
+                                allowed scope without changing Criteria
 
 Internal commands:
   intake begin [text]           Internal alias for start
@@ -59,7 +62,7 @@ Internal commands:
   evidence check                   Validate evidence.yaml
   judge prompt [criteria_id]       Print a Master verdict prompt
   judge apply <verdict.yaml>       Apply a Master verdict file
-  scope-check                   Check that diffs are within scope
+  scope-check [--suggest]       Check that diffs are within scope
   validate [target] [--strict] [--json]
                                 Validate active/ artifacts (collect-all, no
                                 fail-fast). target: goal|contract|evidence|
@@ -147,6 +150,7 @@ case "$cmd" in
   evidence)          exec bash "$GOALSPEC_BIN_DIR/evidence.sh" "$@" ;;
   judge)             exec bash "$GOALSPEC_BIN_DIR/judge.sh" "$@" ;;
   scope-check)       exec bash "$GOALSPEC_BIN_DIR/scope_check.sh" "$@" ;;
+  scope)             exec bash "$GOALSPEC_BIN_DIR/scope.sh" "$@" ;;
   validate)          exec bash "$GOALSPEC_BIN_DIR/validate.sh" "$@" ;;
   complete)          exec bash "$GOALSPEC_BIN_DIR/complete.sh" "$@" ;;
   reopen)            exec bash "$GOALSPEC_BIN_DIR/reopen.sh" "$@" ;;

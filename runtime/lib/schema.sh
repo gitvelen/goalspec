@@ -98,6 +98,10 @@ goalspec_schema_contract_freeze() {
     echo "contract: missing final criteria" >&2
     errs=$((errs+1))
   fi
+  if [ "$(yq e '.allowed_paths | length' "$cf" 2>/dev/null || echo 0)" -lt 1 ]; then
+    echo "contract: allowed_paths must not be empty; use wide domain globs such as src/** and tests/**" >&2
+    errs=$((errs+1))
+  fi
   [ "$errs" -eq 0 ]
 }
 

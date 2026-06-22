@@ -25,6 +25,7 @@ risks:
   follow_ups: []
 hashes:
   contract_hash: null
+  scope_hash: null
   evidence_hash: null
   verdict_hash: null
   memory_patch_hash: null

@@ -230,6 +230,15 @@ goalspec_validate_completion_preview() {
   if [ -n "$rec" ] && [ "$rec" != "null" ] && [ "$cur" != "$rec" ]; then
     goalspec_validate_record warning completion contract_hash "contract changed since freeze; close will require re-freeze"
   fi
+  local cur_scope rec_scope scope_err
+  cur_scope="$(goalspec_scope_hash)"
+  rec_scope="$(yq e '.scope_hash // ""' "$sf")"
+  if [ -n "$rec_scope" ] && [ "$rec_scope" != "null" ] && [ "$cur_scope" != "$rec_scope" ]; then
+    goalspec_validate_record warning completion scope_hash "effective scope changed since last approval; run goalspec scope amend with a reason"
+  fi
+  if ! scope_err="$(GOALSPEC_SCOPE_ROLE=system goalspec_scope_check_run 2>&1 >/dev/null)"; then
+    goalspec_validate_record warning completion scope_check "$scope_err; if these files still serve the current Goal without changing Criteria, run goalspec scope-check --suggest"
+  fi
 
   local qf="$GOALSPEC_ROOT/active/questions.yaml"
   if [ -f "$qf" ]; then

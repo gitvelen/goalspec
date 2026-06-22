@@ -58,6 +58,14 @@ if [ -f "$cf" ] && [ "$(yq e '.status // ""' "$cf")" = "frozen" ]; then
   fi
 fi
 
+if [ -f "$state_file" ] && [ -f "$cf" ] && [ "$(yq e '.status // ""' "$cf")" = "frozen" ]; then
+  rec_scope="$(yq e '.scope_hash // ""' "$state_file")"
+  cur_scope="$(goalspec_scope_hash)"
+  if [ -n "$rec_scope" ] && [ "$rec_scope" != "null" ] && [ "$rec_scope" != "$cur_scope" ]; then
+    BLOCKERS="${BLOCKERS}scope_stale "
+  fi
+fi
+
 if [ -f "$GOALSPEC_ROOT/active/goal-driven-prompt.md" ] \
   && [ "$(yq e '.prompt_hash // ""' "$state_file" 2>/dev/null || echo "")" = "$(goalspec_prompt_hash)" ] \
   && [ "$FROZEN" = "true" ]; then
@@ -167,6 +175,7 @@ close_ready: $CLOSE_READY
 needs_human_confirmation: $NEEDS_HUMAN_CONFIRMATION
 blockers: "$BLOCKERS"
 unmet_criteria: "$UNMET_CRITERIA"
+scope_hash: "$(goalspec_scope_hash 2>/dev/null || echo "")"
 next_user_action: "$NEXT_USER_ACTION"
 EOF
   exit 0
@@ -182,6 +191,7 @@ CLOSE_READY: $CLOSE_READY
 NEEDS_HUMAN_CONFIRMATION: $NEEDS_HUMAN_CONFIRMATION
 BLOCKERS: $BLOCKERS
 UNMET_CRITERIA: $UNMET_CRITERIA
+SCOPE_HASH: $(goalspec_scope_hash 2>/dev/null || echo "")
 NEXT_USER_ACTION: $NEXT_USER_ACTION
 EOF
 
@@ -189,7 +199,9 @@ EOF
 # Only renders once the contract is frozen — there is no loop to describe
 # during intake/drafting.
 if [ "$FROZEN" = "true" ]; then
-  echo "LOOP_CONTRACT:"
-  goalspec_loop_contract_render | sed 's/^/  /'
+  {
+    echo "LOOP_CONTRACT:"
+    goalspec_loop_contract_render | sed 's/^/  /'
+  } 2>/dev/null || true
 fi
 exit 0
