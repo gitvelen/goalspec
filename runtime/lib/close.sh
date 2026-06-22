@@ -14,6 +14,34 @@ goalspec_close_latest_verdict_field() {
   yq e "[.verdicts[] | select(.criteria_ref == \"$cid\")] | .[-1].$field // \"\"" "$vf" 2>/dev/null || true
 }
 
+goalspec_close_criterion_pass_blocker() {
+  local cid="$1"
+  local cur_chash cur_ehash verdict v_chash v_ehash evidence_refs er e_chash
+  cur_chash="$(goalspec_contract_hash)"
+  cur_ehash="$(goalspec_evidence_hash)"
+  verdict="$(goalspec_close_latest_verdict_field "$cid" verdict)"
+  [ "$verdict" = "pass" ] || { echo "no_pass"; return 1; }
+  v_chash="$(goalspec_close_latest_verdict_field "$cid" contract_hash)"
+  [ "$v_chash" = "$cur_chash" ] || { echo "stale_contract"; return 1; }
+  v_ehash="$(goalspec_close_latest_verdict_field "$cid" evidence_hash)"
+  [ "$v_ehash" = "$cur_ehash" ] || { echo "stale_evidence"; return 1; }
+  evidence_refs="$(yq e "[.verdicts[] | select(.criteria_ref == \"$cid\")] | .[-1].evidence_refs[]" "$GOALSPEC_ROOT/active/verdict.yaml" 2>/dev/null || true)"
+  [ -n "$evidence_refs" ] || { echo "no_evidence_refs"; return 1; }
+  while IFS= read -r er; do
+    [ -z "$er" ] && continue
+    if ! yq e ".evidence[] | select(.id == \"$er\") | .id" "$GOALSPEC_ROOT/active/evidence.yaml" 2>/dev/null | grep -q .; then
+      echo "missing_$er"
+      return 1
+    fi
+    e_chash="$(yq e ".evidence[] | select(.id == \"$er\") | .contract_hash // \"\"" "$GOALSPEC_ROOT/active/evidence.yaml" 2>/dev/null || true)"
+    [ "$e_chash" = "$cur_chash" ] || { echo "stale_evidence_contract_$er"; return 1; }
+  done <<<"$evidence_refs"
+}
+
+goalspec_close_criterion_has_fresh_pass() {
+  goalspec_close_criterion_pass_blocker "$1" >/dev/null
+}
+
 # Fingerprint of the current verdict state: each criterion's latest verdict
 # concatenated in contract order. Used by the run-loop no-progress detector
 # (stalled) — if this fingerprint and the evidence_hash are both unchanged across
@@ -29,35 +57,26 @@ goalspec_close_verdict_fingerprint() {
 }
 
 goalspec_close_all_required_pass() {
-  local cid verdict missing="" bad=""
+  local cid blocker missing="" bad=""
   while IFS= read -r cid; do
     [ -z "$cid" ] && continue
-    verdict="$(goalspec_close_latest_verdict_field "$cid" verdict)"
-    case "$verdict" in
-      pass) ;;
-      "") missing="${missing}${cid} " ;;
-      *) bad="${bad}${cid}=${verdict} " ;;
-    esac
+    if ! blocker="$(goalspec_close_criterion_pass_blocker "$cid")"; then
+      case "$blocker" in
+        no_pass) missing="${missing}${cid} " ;;
+        *) bad="${bad}${cid}:${blocker} " ;;
+      esac
+    fi
   done <<<"$(goalspec_close_required_criteria_ids)"
   [ -z "$missing" ] && [ -z "$bad" ]
 }
 
 goalspec_close_validate_pass_evidence() {
-  local cid v_ehash cur_ehash evidence_refs n i er missing=""
-  cur_ehash="$(goalspec_evidence_hash)"
+  local cid blocker missing=""
   while IFS= read -r cid; do
     [ -z "$cid" ] && continue
-    [ "$(goalspec_close_latest_verdict_field "$cid" verdict)" = "pass" ] || { missing="${missing}${cid}:no_pass "; continue; }
-    v_ehash="$(goalspec_close_latest_verdict_field "$cid" evidence_hash)"
-    [ "$v_ehash" = "$cur_ehash" ] || { missing="${missing}${cid}:stale_evidence "; continue; }
-    evidence_refs="$(yq e "[.verdicts[] | select(.criteria_ref == \"$cid\")] | .[-1].evidence_refs[]" "$GOALSPEC_ROOT/active/verdict.yaml" 2>/dev/null || true)"
-    [ -n "$evidence_refs" ] || { missing="${missing}${cid}:no_evidence_refs "; continue; }
-    while IFS= read -r er; do
-      [ -z "$er" ] && continue
-      if ! yq e ".evidence[] | select(.id == \"$er\") | .id" "$GOALSPEC_ROOT/active/evidence.yaml" 2>/dev/null | grep -q .; then
-        missing="${missing}${cid}:missing_$er "
-      fi
-    done <<<"$evidence_refs"
+    if ! blocker="$(goalspec_close_criterion_pass_blocker "$cid")"; then
+      missing="${missing}${cid}:${blocker} "
+    fi
   done <<<"$(goalspec_close_required_criteria_ids)"
   [ -z "$missing" ] || { echo "$missing"; return 1; }
 }
@@ -221,8 +240,8 @@ goalspec_close_completion_gate() {
   # Defensive: require at least one criterion, so an empty/unparseable criteria
   # table cannot make the pass-check vacuously succeed and trigger a close package.
   [ -n "$(goalspec_close_required_criteria_ids)" ] || { echo "no criteria found"; return 1; }
-  goalspec_close_all_required_pass || { echo "required criteria do not all have pass verdicts"; return 1; }
-  goalspec_close_validate_pass_evidence >/dev/null || { echo "pass verdicts lack fresh evidence"; return 1; }
+  goalspec_close_all_required_pass || { echo "required criteria do not all have fresh pass verdicts"; return 1; }
+  goalspec_close_validate_pass_evidence >/dev/null || { echo "pass verdicts are stale or lack fresh evidence"; return 1; }
   GOALSPEC_SCOPE_ROLE=system goalspec_scope_check_run || { echo "scope-check failed"; return 1; }
   local mpf="$GOALSPEC_ROOT/active/memory-patch.yaml"
   [ -f "$mpf" ] || { echo "memory-patch.yaml missing"; return 1; }

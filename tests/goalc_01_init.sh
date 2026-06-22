@@ -143,6 +143,10 @@ HOME="$ai_home" "$REPO_GS" install-ai codex >/dev/null
 [ -f "$ai_home/plugins/goalspec/.codex-plugin/plugin.json" ] \
   && ok "install-ai codex installs local plugin package" \
   || bad "install-ai codex did not install local plugin package"
+[ -f "$ai_home/plugins/goalspec/commands/goalspec.md" ] \
+  && /bin/grep -q 'Run a Goalspec project-local lifecycle command' "$ai_home/plugins/goalspec/commands/goalspec.md" \
+  && ok "install-ai codex installs slash command" \
+  || bad "install-ai codex did not install slash command"
 [ -f "$ai_home/.agents/plugins/marketplace.json" ] \
   && yq e '.plugins[] | select(.name == "goalspec") | .category' "$ai_home/.agents/plugins/marketplace.json" | /bin/grep -q 'Productivity' \
   && ok "install-ai codex updates personal marketplace" \

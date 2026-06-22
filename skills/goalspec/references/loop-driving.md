@@ -1,18 +1,29 @@
 # Run-Loop & External Cadence
 
-## run is already a loop
+## run is already a prompt-driven loop
 
-`/goalspec run` is not a single shot. Once it lets the agent through
-(`GOALSPEC_RUN_ALLOWED: true`), the Goal-Driven Prompt instructs the agent
-session to loop:
+`/goalspec run` is not a single shot once it lets the agent through
+(`GOALSPEC_RUN_ALLOWED: true`). The CLI validates the frozen Goal, Criteria,
+Constraints, hashes, and run-loop gates, then prints the Goal-Driven Prompt.
+That prompt instructs the current AI tool/session to run the in-session loop:
 
-> Continue Master Evaluation -> Subagent Work -> Evidence/Progress Report
-> until all required Criteria pass, the user stops, or a blocking ambiguity
-> requires human input.
+```text
+Master Evaluation
+-> Primary Subagent Work
+-> Evidence / Progress Report
+-> Master Verdict
+-> Continue Or Stop
+```
 
-So the Master/Subagent loop lives **inside** one `/goalspec run`. Goalspec does
-not add (and does not need) a separate `loop` command — that would just
-re-schedule the loop that `run` already drives.
+The contract model stays only Goal / Criteria / Constraints. Agent roles are
+execution roles: the Master directly controls exactly one Primary Subagent; the
+Primary Subagent may delegate bounded, Criteria-linked work to Worker Subagents
+when useful and supported by the AI tool/session. Workers produce artifacts,
+command results, and evidence candidates; only the Master can judge Criteria.
+
+So the Master/Subagent loop lives **inside** one `/goalspec run` as prompt-driven
+AI-session behavior. Goalspec does not add a separate runtime `loop` command that
+spawns agents or owns their process lifecycle.
 
 ## Built-in stop conditions
 
@@ -43,11 +54,24 @@ cannot bypass (`judge apply` / `run`):
    verdict, the loop will not blindly retry the remaining `judgment`-kind
    criteria; those need human/Master resolution, not Subagent iteration.
 
-## Driving it unattended
+## Heartbeat and external cadence
 
-Goalspec does not ship a scheduler. If you want the run-loop to advance without
-a human typing each `/goalspec run`, drive it from outside — the stop
-conditions above keep it bounded:
+Goalspec CLI runtime does not ship a scheduler, spawn subagents, monitor
+heartbeats, or restart agent processes. Those behaviors belong to the current AI
+tool/session when it supports timed wakeups, long-running monitoring, or
+background task checks.
+
+The generated prompt therefore uses a conditional heartbeat policy: when the AI
+tool/session supports it, the Master should check the Primary Subagent about
+every 5 minutes. If the Primary Subagent is inactive, failed, rate-limited,
+timed out, idle, returned control, or merely claims completion, the Master must
+first evaluate current evidence against the frozen Criteria. If required
+Criteria are still unmet and no blocking ambiguity exists, the Master resumes,
+replaces, or reissues exactly one Primary Subagent work packet for the unmet
+Criteria.
+
+If you want the run-loop to advance without a human typing each `/goalspec run`,
+drive it from outside — the stop conditions above keep it bounded:
 
 - **Claude Code `/loop`** — re-issue the run on a cadence; the agent reads
   `goalspec status`, advances the unmet Criteria, lets the Master judge them,

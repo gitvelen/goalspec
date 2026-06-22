@@ -237,19 +237,19 @@ goalspec_validate_completion_preview() {
     [ "${nb:-0}" -eq 0 ] || goalspec_validate_record warning completion blocking_questions "${nb} blocking question(s) unresolved; close will fail"
   fi
 
-  local crit_ids c v missing="" bad=""
+  local crit_ids c blocker missing="" bad=""
   crit_ids="$(yq e '.criteria[].id' "$cf" 2>/dev/null)"
   while IFS= read -r c; do
     [ -z "$c" ] && continue
-    v="$(yq e "[.verdicts[] | select(.criteria_ref == \"$c\")] | .[-1].verdict // \"\"" "$vf" 2>/dev/null)"
-    case "$v" in
-      pass) ;;
-      "") missing="${missing}${c} " ;;
-      *) bad="${bad}${c}=${v} " ;;
-    esac
+    if ! blocker="$(goalspec_close_criterion_pass_blocker "$c")"; then
+      case "$blocker" in
+        no_pass) missing="${missing}${c} " ;;
+        *) bad="${bad}${c}:${blocker} " ;;
+      esac
+    fi
   done <<<"$crit_ids"
-  [ -z "$missing" ] || goalspec_validate_record warning completion verdicts "no pass verdict for required/final/hard: $missing"
-  [ -z "$bad" ] || goalspec_validate_record warning completion verdicts "non-pass verdict on required/final/hard: $bad"
+  [ -z "$missing" ] || goalspec_validate_record warning completion verdicts "no fresh pass verdict for required/final/hard: $missing"
+  [ -z "$bad" ] || goalspec_validate_record warning completion verdicts "stale or non-pass verdict on required/final/hard: $bad"
 
   local mpf="$GOALSPEC_ROOT/active/memory-patch.yaml"
   if [ ! -f "$mpf" ]; then

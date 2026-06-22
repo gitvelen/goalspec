@@ -47,7 +47,13 @@ evidence_refs: [EV-001]
 contract_hash: "$CHASH"
 evidence_hash: "$EHASH"
 verdict: pass
-reason: ok
+reason: |
+  Coverage audit:
+  - claim: "test criterion"
+    evidence: [EV-001]
+    sufficiency: sufficient
+    why: "EV-001 satisfies the test fixture evidence requirement."
+  conclusion: "pass"
 context: fresh
 evaluated_by: master
 YML

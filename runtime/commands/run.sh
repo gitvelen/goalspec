@@ -72,8 +72,7 @@ machine_unmet=""; judgment_unmet=""
 while IFS= read -r cid; do
   [ -z "$cid" ] && continue
   k="$(yq e ".criteria[] | select(.id == \"$cid\") | .kind // \"machine\"" "$cf")"
-  v="$(goalspec_close_latest_verdict_field "$cid" verdict)"
-  if [ "$v" = "pass" ]; then
+  if goalspec_close_criterion_has_fresh_pass "$cid"; then
     :
   elif [ "$k" = "judgment" ]; then
     judgment_unmet="${judgment_unmet}${cid} "

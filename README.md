@@ -485,49 +485,35 @@ It exists to make the loop's contract inspectable in one place — what triggers
 
 ## Reopen policy
 
-Use `/goalspec reopen <reason>` only when the frozen Goal, Criteria, or Constraints is wrong, insufficient, contradictory, impossible under the current boundaries, or newly in conflict with the human's intended acceptance basis.
+Use `/goalspec reopen <reason>` only when the frozen Goal, Criteria, or Constraints is no longer a valid acceptance basis: it is wrong, incomplete, contradictory, impossible under the current Constraints, or no longer matches the human's intended acceptance result.
 
-Do not use reopen for ordinary unfinished implementation. If the contract is still correct and work is simply incomplete, stay in `running` and continue the Master/Subagent loop.
+Do not reopen because implementation is unfinished. If the contract is still correct, stay in `running` and continue the Master/Subagent loop.
 
-### What changes after reopen
+### Reopen flow
 
-- The current frozen execution basis is invalidated.
-- The current frozen contract is demoted back to `draft` and must be reviewed, approved, and frozen again.
-- The old prompt may no longer be executed.
-- `reopen-impact.yaml` becomes a required recovery artifact: fill it in, mark it reviewed by a human, then revise Goal/contract and freeze again.
-- Old evidence and verdict files may remain as history, but they do not automatically prove the revised contract.
-- The old close package is stale and must not be closed.
-- The lifecycle returns to contract re-review and re-freeze before implementation can resume.
+1. The human runs `/goalspec reopen <reason>`.
+2. The current frozen execution basis becomes invalid: do not keep implementing, judging, running the old prompt, or closing the old close package.
+3. Goalspec creates `.goalspec/active/reopen-impact.yaml`.
+4. Fill `reopen-impact.yaml`: explain why the frozen basis failed, classify each Criterion, list reusable work, list evidence to refresh, and mark whether each affected item needs `rejudge_only` or `reimplement_needed`.
+5. The human reviews the impact and approves the revised Goal/Criteria/Constraints.
+6. Freeze the revised contract again; only then may `/goalspec run` resume.
 
-### Reopen does not mean “redo everything”
+### Criteria impact
 
-Goalspec records completion at the Criteria/evidence/verdict level, not as a task checklist.
+Reopen is a contract repair step, not a full restart by default. Completion is tracked at the Criteria/evidence/verdict level:
 
-`/goalspec reopen` now creates `.goalspec/active/reopen-impact.yaml` as the formal recovery artifact. Complete it before re-freezing:
+- `unchanged`: keep the Criterion ID; reuse valid code; replay or re-judge evidence as needed.
+- `modified`: keep or update implementation as needed; collect fresh evidence; judge again.
+- `added`: implement, collect evidence, and judge.
+- `removed`: remove from the required completion set.
 
-- summarize why the frozen contract is no longer acceptable;
-- classify Criteria into `unchanged`, `modified`, `added`, and `removed`;
-- list what code can be reused;
-- list which evidence needs refresh;
-- distinguish `rejudge_only` from `reimplement_needed` work.
-
-That means reopen should drive **impact analysis over Criteria**, not blind full restart:
-
-- `unchanged` Criteria: keep the same Criterion ID; reuse code where valid; re-judge or replay evidence as needed.
-- `modified` Criteria: re-judge and, if needed, extend implementation or evidence.
-- `added` Criteria: add new implementation and evidence.
-- `removed` Criteria: remove them from the required completion set.
-
-Only Goal/Constraint changes with global effect should force full re-validation.
+Only a Goal or Constraint change with global effect should force full re-validation.
 
 ### Reopen vs next change
 
-If the human asks for an extra improvement that does **not** change whether the current Goal is complete, prefer:
+If the new request changes what counts as complete for the current Goal, reopen the current change.
 
-1. closing the current change; then
-2. starting a new `/goalspec start <intent>`.
-
-If the new request changes what counts as complete for the current Goal, reopen the current change instead.
+If it is an extra improvement that does not affect current completion, close the current change first and start a new `/goalspec start <intent>`.
 
 ## Close
 

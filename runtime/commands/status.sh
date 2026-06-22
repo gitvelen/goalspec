@@ -77,8 +77,7 @@ if [ -f "$cf" ]; then
   required_ids="$(yq e '.criteria[].id' "$cf" 2>/dev/null || true)"
   while IFS= read -r cid; do
     [ -z "$cid" ] && continue
-    v="$(yq e "[.verdicts[] | select(.criteria_ref == \"$cid\")] | .[-1].verdict // \"\"" "$vf" 2>/dev/null || true)"
-    [ "$v" = "pass" ] && continue
+    goalspec_close_criterion_has_fresh_pass "$cid" && continue
     k="$(yq e ".criteria[] | select(.id == \"$cid\") | .kind // \"machine\"" "$cf" 2>/dev/null || echo machine)"
     UNMET_CRITERIA="${UNMET_CRITERIA}${cid}(${k}) "
   done <<<"$required_ids"

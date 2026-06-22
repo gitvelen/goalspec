@@ -52,7 +52,13 @@ evidence_refs: [EV-001]
 contract_hash: "$FROZEN_CHASH"
 evidence_hash: "$EHASH"
 verdict: pass
-reason: ok
+reason: |
+  Coverage audit:
+  - claim: "test criterion"
+    evidence: [EV-001]
+    sufficiency: sufficient
+    why: "EV-001 satisfies the test fixture evidence requirement."
+  conclusion: "pass"
 context: fresh
 evaluated_by: master
 YML
@@ -79,7 +85,13 @@ evidence_refs: [EV-001]
 contract_hash: "$(cur_contract_hash)"
 evidence_hash: "$(cur_evidence_hash)"
 verdict: pass
-reason: again
+reason: |
+  Coverage audit:
+  - claim: "test criterion"
+    evidence: [EV-001]
+    sufficiency: sufficient
+    why: "EV-001 satisfies the test fixture evidence requirement."
+  conclusion: "pass"
 context: fresh
 evaluated_by: master
 YML

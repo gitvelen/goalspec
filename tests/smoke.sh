@@ -224,7 +224,13 @@ evidence_refs: [EV-001]
 contract_hash: "$CHASH"
 evidence_hash: "$EHASH"
 verdict: pass
-reason: "EV-001 browser automation confirms snake moves on tick"
+reason: |
+  Coverage audit:
+  - claim: "snake moves on tick"
+    evidence: [EV-001]
+    sufficiency: sufficient
+    why: "EV-001 is browser automation for the smoke scenario."
+  conclusion: "pass"
 context: fresh
 evaluated_by: master
 YML
@@ -248,7 +254,13 @@ evidence_refs: [EV-001]
 contract_hash: "$CHASH"
 evidence_hash: "$EHASH"
 verdict: pass
-reason: "EV-001 covers all scenarios in browser"
+reason: |
+  Coverage audit:
+  - claim: "all final smoke scenarios"
+    evidence: [EV-001]
+    sufficiency: sufficient
+    why: "EV-001 covers the browser smoke scenario required by the final criterion."
+  conclusion: "pass"
 context: fresh
 evaluated_by: master
 YML

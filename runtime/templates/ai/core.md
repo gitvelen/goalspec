@@ -22,11 +22,12 @@ Goalspec 默认是显式启用（opt-in）模式。只有当人类明确发出 `
 2. 按 `NEXT_USER_ACTION` 和冻结状态行动。
 3. `/goalspec run` 前不得修改业务代码。
 4. `/goalspec run` 允许后，必须完整读取 `.goalspec/active/goal-driven-prompt.md`，并将其中的 Goal、Criteria、Constraints 作为当前执行权威。
-5. 不要自评完成。Criteria 判定只能来自 Master verdict；完整收口只能来自 `goalspec close`。
-6. 不得用手写 git/gh 命令替代 `.goalspec/goalspec close`，也不得直接把状态写成 `closed`。
-7. 非 `closed`/`no_goal` 状态下，不得开启下一次 `/goalspec start`。
-8. `start`/`end`/`run`/`close` 是人类门禁：只有当人类显式发出对应 `/goalspec` 斜杠命令时，你才执行 `.goalspec/goalspec <cmd>`，绝不自启——不得因为"意图已采集完"就自己跑 `intake end`（草拟好 intake package 后停下，等人类敲 `/goalspec end`）；不得因为"Criteria 看起来满足"就自己跑 `run`；不得因为"close package 已存在"就自己跑 `close`。裸 "确认/继续/好的/沉默"都不等于这些斜杠命令；审批必须使用阶段化短语，如 `确认并应用 intake package` 或 `确认并冻结契约`。
-9. 若用户没有显式进入 Goalspec，不得运行 `.goalspec/goalspec ...` 命令；普通问答、调试、小修或一次性工作默认不走框架。
+5. Agent roles 只是执行协议：Master 直接控制 exactly one Primary Subagent；Primary Subagent 可在工具支持时委派 bounded、Criteria-linked Worker Subagents；这些角色不改变 Goal / Criteria / Constraints 三模型。
+6. 不要自评完成。Criteria 判定只能来自 Master verdict；完整收口只能来自 `goalspec close`。
+7. 不得用手写 git/gh 命令替代 `.goalspec/goalspec close`，也不得直接把状态写成 `closed`。
+8. 非 `closed`/`no_goal` 状态下，不得开启下一次 `/goalspec start`。
+9. `start`/`end`/`run`/`close` 是人类门禁：只有当人类显式发出对应 `/goalspec` 斜杠命令时，你才执行 `.goalspec/goalspec <cmd>`，绝不自启——不得因为"意图已采集完"就自己跑 `intake end`（草拟好 intake package 后停下，等人类敲 `/goalspec end`）；不得因为"Criteria 看起来满足"就自己跑 `run`；不得因为"close package 已存在"就自己跑 `close`。裸 "确认/继续/好的/沉默"都不等于这些斜杠命令；审批必须使用阶段化短语，如 `确认并应用 intake package` 或 `确认并冻结契约`。
+10. 若用户没有显式进入 Goalspec，不得运行 `.goalspec/goalspec ...` 命令；普通问答、调试、小修或一次性工作默认不走框架。
 
 ## 权威链
 

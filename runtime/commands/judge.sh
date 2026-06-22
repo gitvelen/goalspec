@@ -31,8 +31,26 @@ Verify the relevant Criteria against the evidence. Rules:
   - all referenced evidence_ids and criteria_refs must exist.
   - a 'pass' verdict MUST cite evidence whose runtime_boundary and facets meet
     the criterion's evidence_requirement_refs.
+  - evidence_requirement_refs are necessary but NOT sufficient: they prove the
+    evidence type is present, not that every statement claim is satisfied.
   - If the criterion cannot be proven, emit fail/insufficient/blocked/stale/
     reopen_required as appropriate (never pretend pass).
+
+Before emitting a pass verdict, perform Criteria Coverage Audit:
+  1. Statement decomposition — split criterion.statement into atomic claims,
+     including fields, states, samples, interactions, failure states, history,
+     visual requirements, LLM requirements, persistence, and must-not clauses.
+  2. Evidence mapping — cite evidence id(s) for each atomic claim. A claim with
+     no supporting evidence id is not proven.
+  3. Evidence strength classification — classify each cited evidence as real
+     runtime, browser runtime, API runtime, integration test, unit test,
+     fixture, mock, static assertion, or manual observation.
+  4. Sufficiency check — decide whether the evidence strength is enough for the
+     claim. Fixture/mock evidence cannot masquerade as real runtime evidence;
+     missing-state samples cannot prove full-data states; unit tests alone do
+     not automatically prove user-visible interaction completeness.
+  5. Pass rule — if any atomic claim lacks sufficient evidence, do not pass;
+     emit insufficient/fail/blocked/stale/reopen_required instead.
 
 Emit a YAML document with these fields:
   criteria_ref: "<CRIT-...>"
@@ -40,7 +58,13 @@ Emit a YAML document with these fields:
   contract_hash: "<sha256:...>"
   evidence_hash: "<sha256:...>"
   verdict: pass | fail | insufficient | blocked | stale | reopen_required
-  reason: "..."
+  reason: |-
+    Coverage audit:
+    - claim: "..."
+      evidence: [EV-...]
+      sufficiency: sufficient | insufficient | partial
+      why: "..."
+    conclusion: "..."
   context: fresh
   evaluated_by: master
 EOF
@@ -92,6 +116,22 @@ EOF
       i=$((i+1))
     done
     verdict="$(yq e '.verdict' "$file")"
+    # A pass verdict must show its semantic coverage work, not just say tests
+    # passed. This is intentionally a lightweight format guard; the Master still
+    # owns the semantic judgment, while the CLI prevents one-line pass reasons.
+    if [ "$verdict" = "pass" ]; then
+      reason="$(yq e '.reason // ""' "$file")"
+      missing_audit=""
+      for token in 'Coverage audit:' 'claim' 'evidence' 'sufficiency' 'conclusion'; do
+        if ! printf '%s\n' "$reason" | grep -q "$token"; then
+          missing_audit="${missing_audit}${token} "
+        fi
+      done
+      if [ -n "$missing_audit" ]; then
+        echo "judge apply: pass verdict reason missing Criteria Coverage Audit fields: $missing_audit" >&2
+        exit 1
+      fi
+    fi
     # If verdict=pass, the cited evidence must satisfy the criterion's
     # evidence_requirement_refs (criteria carry the requirements now).
     if [ "$verdict" = "pass" ]; then
@@ -125,6 +165,11 @@ EOF
       i=0
       while [ "$i" -lt "$n" ]; do
         er="$(yq e ".evidence_refs[$i]" "$file")"
+        e_chash="$(yq e ".evidence[] | select(.id == \"$er\") | .contract_hash // \"\"" "$ef" 2>/dev/null || true)"
+        if [ "$e_chash" != "$cur_chash" ]; then
+          echo "judge apply: pass verdict cites stale evidence $er (evidence_contract=$e_chash current=$cur_chash)" >&2
+          exit 1
+        fi
         if ! sensor_err="$(goalspec_sensor_verify_evidence "$er" 2>&1 1>/dev/null)"; then
           echo "judge apply: pass verdict rejected — $sensor_err" >&2
           exit 1

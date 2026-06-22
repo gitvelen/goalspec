@@ -55,7 +55,13 @@ evidence_refs: [EV-001]
 contract_hash: "$chash"
 evidence_hash: "$ehash"
 verdict: $v
-reason: ok
+reason: |
+  Coverage audit:
+  - claim: "sensor test criterion"
+    evidence: [EV-001]
+    sufficiency: sufficient
+    why: "EV-001 satisfies the test fixture evidence requirement."
+  conclusion: "$v"
 context: fresh
 evaluated_by: master
 YML

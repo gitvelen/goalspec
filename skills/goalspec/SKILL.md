@@ -82,6 +82,22 @@ When `/goalspec run` reports `CLOSE_PACKAGE_READY: true`, show `.goalspec/active
 
 `/goalspec close` means the human confirms the current close package and authorizes memory patch application, history archive, and the configured delivery mode (for example GitHub PR, push-only, local commit, or archive-only). Close is recoverable: if it fails, re-running continues from the checkpoint.
 
+## Verdict Discipline
+
+A `pass` verdict means the Criteria statement is semantically covered, not merely that evidence_requirement_refs are present.
+
+Before any `pass`, the Master must perform a Criteria Coverage Audit:
+
+- decompose the criterion statement into atomic claims;
+- map each claim to supporting evidence ids;
+- classify evidence strength (real runtime, browser runtime, API runtime, integration test, unit test, fixture, mock, static assertion, manual observation);
+- check whether the evidence strength is sufficient for the claim;
+- emit `insufficient` / `fail` / `blocked` / `stale` / `reopen_required` if any claim is uncovered or weakly covered.
+
+Pass verdict reasons must contain `Coverage audit:` plus claim/evidence/sufficiency/conclusion details. Judgment Criteria require extra skepticism: check whether evidence is real runtime vs fixture/mock, whether failure states and samples are covered, and whether missing-state evidence is being incorrectly used as full-data proof.
+
+If the human asks whether something was actually observed or proven, answer from Criteria claims and evidence contents. Do not cite an existing pass verdict as self-proof.
+
 ## Hard Rules
 
 - Never write business code during intake or compile.

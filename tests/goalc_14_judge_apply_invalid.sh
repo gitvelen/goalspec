@@ -50,7 +50,13 @@ evidence_refs: [EV-001]
 contract_hash: "$CHASH"
 evidence_hash: "$EHASH"
 verdict: pass
-reason: x
+reason: |
+  Coverage audit:
+  - claim: "test criterion"
+    evidence: [EV-001]
+    sufficiency: sufficient
+    why: "EV-001 satisfies the test fixture evidence requirement."
+  conclusion: "pass"
 context: stale
 evaluated_by: master
 YML
@@ -67,7 +73,13 @@ evidence_refs: [EV-001]
 contract_hash: "$CHASH"
 evidence_hash: "$EHASH"
 verdict: pass
-reason: x
+reason: |
+  Coverage audit:
+  - claim: "test criterion"
+    evidence: [EV-001]
+    sufficiency: sufficient
+    why: "EV-001 satisfies the test fixture evidence requirement."
+  conclusion: "pass"
 context: fresh
 evaluated_by: master
 YML
@@ -84,7 +96,13 @@ evidence_refs: [EV-DOES-NOT-EXIST]
 contract_hash: "$CHASH"
 evidence_hash: "$EHASH"
 verdict: pass
-reason: x
+reason: |
+  Coverage audit:
+  - claim: "test criterion"
+    evidence: [EV-001]
+    sufficiency: sufficient
+    why: "EV-001 satisfies the test fixture evidence requirement."
+  conclusion: "pass"
 context: fresh
 evaluated_by: master
 YML
@@ -101,7 +119,13 @@ evidence_refs: [EV-001]
 contract_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 evidence_hash: "$EHASH"
 verdict: pass
-reason: x
+reason: |
+  Coverage audit:
+  - claim: "test criterion"
+    evidence: [EV-001]
+    sufficiency: sufficient
+    why: "EV-001 satisfies the test fixture evidence requirement."
+  conclusion: "pass"
 context: fresh
 evaluated_by: master
 YML
@@ -138,7 +162,13 @@ evidence_refs: [EV-002]
 contract_hash: "$CHASH"
 evidence_hash: "$EHASH2"
 verdict: pass
-reason: ok
+reason: |
+  Coverage audit:
+  - claim: "test criterion"
+    evidence: [EV-001]
+    sufficiency: sufficient
+    why: "EV-001 satisfies the test fixture evidence requirement."
+  conclusion: "pass"
 context: fresh
 evaluated_by: master
 YML

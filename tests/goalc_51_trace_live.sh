@@ -48,7 +48,25 @@ apply_v() {  # <crit> <verdict> <reason>
   local c="$1" v="$2" r="$3" chash ehash
   chash="$(yq e '.contract_hash' "$REPO/.goalspec/active/contract.yaml")"
   ehash="$(cur_evidence_hash)"
-  cat > "$P51/v.yaml" <<YML
+  if [ "$v" = "pass" ]; then
+    cat > "$P51/v.yaml" <<YML
+criteria_ref: $c
+evidence_refs: [EV-001]
+contract_hash: "$chash"
+evidence_hash: "$ehash"
+verdict: $v
+reason: |
+  Coverage audit:
+  - claim: "$r"
+    evidence: [EV-001]
+    sufficiency: sufficient
+    why: "EV-001 satisfies the test fixture evidence requirement."
+  conclusion: "pass"
+context: fresh
+evaluated_by: master
+YML
+  else
+    cat > "$P51/v.yaml" <<YML
 criteria_ref: $c
 evidence_refs: [EV-001]
 contract_hash: "$chash"
@@ -58,6 +76,7 @@ reason: "$r"
 context: fresh
 evaluated_by: master
 YML
+  fi
   "$REPO_GS" judge apply "$P51/v.yaml"
 }
 

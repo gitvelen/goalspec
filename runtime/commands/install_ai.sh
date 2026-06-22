@@ -53,21 +53,56 @@ install_codex_plugin() {
   local plugin_root marketplace
   plugin_root="$HOME/plugins/goalspec"
   marketplace="$HOME/.agents/plugins/marketplace.json"
-  mkdir -p "$plugin_root/.codex-plugin" "$plugin_root/skills/goalspec" "$(dirname "$marketplace")"
+  mkdir -p "$plugin_root/.codex-plugin" "$plugin_root/skills/goalspec" "$plugin_root/commands" "$(dirname "$marketplace")"
   cp -R "$SRC_ROOT/skills/goalspec/." "$plugin_root/skills/goalspec/"
   cat > "$plugin_root/.codex-plugin/plugin.json" <<'JSON'
 {
   "name": "goalspec",
   "version": "0.1.0",
   "description": "Goalspec project-local goal-driven development workflow",
-  "skills": [
-    {
-      "name": "goalspec",
-      "path": "skills/goalspec"
-    }
-  ]
+  "author": {
+    "name": "Goalspec"
+  },
+  "keywords": ["goalspec", "goal", "contract", "intake"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Goalspec",
+    "shortDescription": "Run project-local goal-driven development workflows.",
+    "longDescription": "Goalspec adds an explicit, project-local lifecycle for goal capture, frozen criteria, implementation, verification, and closeout.",
+    "developerName": "Goalspec",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "defaultPrompt": [
+      "Run /goalspec status",
+      "Start a Goalspec-managed change"
+    ],
+    "brandColor": "#2563EB"
+  }
 }
 JSON
+  cat > "$plugin_root/commands/goalspec.md" <<'MD'
+---
+description: Run a Goalspec project-local lifecycle command.
+---
+
+# Goalspec
+
+Interpret this slash command as the human-facing Goalspec command layer. Execute the matching project-local `.goalspec/goalspec ...` command only as a direct translation of the human's `/goalspec ...` input.
+
+Goalspec is explicit opt-in: only enter this lifecycle when the human explicitly uses `/goalspec ...` or clearly asks to run a formal Goalspec-managed change. Otherwise handle the request as normal development work.
+
+Supported human-facing commands:
+
+- `/goalspec status`
+- `/goalspec start <intent>`
+- `/goalspec source <path>`
+- `/goalspec end`
+- `/goalspec run`
+- `/goalspec close`
+- `/goalspec reopen <reason>`
+
+Before lifecycle actions, run `.goalspec/goalspec status` and follow the installed `goalspec` skill's command map. Do not treat bare "确认", "ok", "continue", or silence as run, freeze, or close permission.
+MD
   if [ ! -f "$marketplace" ]; then
     cat > "$marketplace" <<'JSON'
 {

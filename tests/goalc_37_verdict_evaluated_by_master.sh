@@ -44,7 +44,13 @@ evidence_refs: [EV-001]
 contract_hash: "$CHASH"
 evidence_hash: "$EHASH"
 verdict: pass
-reason: ok
+reason: |
+  Coverage audit:
+  - claim: "test criterion"
+    evidence: [EV-001]
+    sufficiency: sufficient
+    why: "EV-001 satisfies the test fixture evidence requirement."
+  conclusion: "pass"
 context: fresh
 evaluated_by: subagent
 YML
@@ -61,7 +67,13 @@ evidence_refs: [EV-001]
 contract_hash: "$CHASH"
 evidence_hash: "$EHASH"
 verdict: pass
-reason: ok
+reason: |
+  Coverage audit:
+  - claim: "test criterion"
+    evidence: [EV-001]
+    sufficiency: sufficient
+    why: "EV-001 satisfies the test fixture evidence requirement."
+  conclusion: "pass"
 context: fresh
 YML
 if "$REPO_GS" judge apply "$tmp/v-missing.yaml" >/dev/null 2>&1; then
@@ -77,7 +89,13 @@ evidence_refs: [EV-001]
 contract_hash: "$CHASH"
 evidence_hash: "$EHASH"
 verdict: pass
-reason: ok
+reason: |
+  Coverage audit:
+  - claim: "test criterion"
+    evidence: [EV-001]
+    sufficiency: sufficient
+    why: "EV-001 satisfies the test fixture evidence requirement."
+  conclusion: "pass"
 context: fresh
 evaluated_by: master
 YML
@@ -96,7 +114,13 @@ verdicts:
     contract_hash: "$CHASH"
     evidence_hash: "$EHASH"
     context: fresh
-    reason: forged
+    reason: |
+      Coverage audit:
+      - claim: "test criterion"
+        evidence: [EV-001]
+        sufficiency: sufficient
+        why: "EV-001 satisfies the test fixture evidence requirement."
+      conclusion: "pass"
     evaluated_by: subagent
 YML
 out="$({ "$REPO_GS" validate verdict; } 2>&1 || true)"

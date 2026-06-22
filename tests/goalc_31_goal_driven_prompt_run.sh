@@ -62,11 +62,25 @@ prompt="$REPO/.goalspec/active/goal-driven-prompt.md"
 
 /bin/grep -q 'Goal-Driven' "$prompt" \
   && /bin/grep -q 'Master Agent' "$prompt" \
-  && /bin/grep -q 'Subagent' "$prompt" \
+  && /bin/grep -q 'Primary Subagent' "$prompt" \
+  && /bin/grep -q 'Worker Subagents' "$prompt" \
+  && /bin/grep -q 'Agent roles are execution roles only' "$prompt" \
+  && /bin/grep -q 'Agent Execution Roles' "$prompt" \
+  && /bin/grep -q 'bounded, Criteria-linked' "$prompt" \
+  && /bin/grep -q 'Loop Procedure' "$prompt" \
+  && /bin/grep -q 'Master Evaluation' "$prompt" \
+  && /bin/grep -q 'Evidence / Progress Report' "$prompt" \
+  && /bin/grep -q 'Master Verdict' "$prompt" \
+  && /bin/grep -q 'Criteria Coverage Audit' "$prompt" \
+  && /bin/grep -q 'atomic claim lacks sufficient evidence' "$prompt" \
+  && /bin/grep -q 'Master Heartbeat Policy' "$prompt" \
+  && /bin/grep -q 'about every 5 minutes' "$prompt" \
+  && /bin/grep -q 'Do not stop merely because one Subagent attempt finishes' "$prompt" \
+  && /bin/grep -q 'Goalspec CLI runtime does not itself' "$prompt" \
   && /bin/grep -q 'Criteria satisfaction is the only success condition' "$prompt" \
   && /bin/grep -q 'Subagent cannot declare final success' "$prompt" \
-  && ok "prompt contains master/subagent control rules" \
-  || bad "prompt missing goal-driven control rules"
+  && ok "prompt contains explicit master/subagent loop and heartbeat protocol" \
+  || bad "prompt missing goal-driven loop protocol"
 
 out="$("$REPO_GS" run)"
 echo "$out" | /bin/grep -q 'GOALSPEC_RUN_ALLOWED: true' \
