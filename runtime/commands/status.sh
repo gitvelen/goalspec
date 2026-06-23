@@ -23,6 +23,7 @@ RUN_ALLOWED="false"
 CLOSE_READY="false"
 NEEDS_HUMAN_CONFIRMATION="false"
 BLOCKERS=""
+CLOSE_BLOCKERS=""
 UNMET_CRITERIA=""
 NEXT_USER_ACTION="Run /goalspec start <intent> to open a formal intake window."
 
@@ -92,11 +93,21 @@ if [ -f "$cf" ]; then
 fi
 [ -n "$UNMET_CRITERIA" ] || UNMET_CRITERIA="(none)"
 
+if [ "$FROZEN" = "true" ] && [ "$UNMET_CRITERIA" = "(none)" ] && [ "$STATE" != "closed" ]; then
+  readiness_blockers="$(goalspec_close_readiness_blockers)"
+  if [ -n "$readiness_blockers" ]; then
+    CLOSE_BLOCKERS="$readiness_blockers"
+    BLOCKERS="${BLOCKERS}close_readiness "
+    CLOSE_READY="false"
+  fi
+fi
+
 if [ "$STATE" = "ready_to_close" ] && [ -f "$cpf" ]; then
   if goalspec_close_validate_package_hashes >/dev/null 2>&1; then
     CLOSE_READY="true"
   else
     BLOCKERS="${BLOCKERS}close_package_stale "
+    CLOSE_BLOCKERS="${CLOSE_BLOCKERS} close_package_stale"
   fi
 fi
 
@@ -163,6 +174,7 @@ if [ -n "$sb" ]; then
   CLOSE_READY="false"
 fi
 [ -n "$BLOCKERS" ] || BLOCKERS="(none)"
+[ -n "$CLOSE_BLOCKERS" ] || CLOSE_BLOCKERS="(none)"
 
 if [ "$mode" = "json" ]; then
   yq -o=json -I=0 '.' <<EOF
@@ -174,6 +186,7 @@ run_allowed: $RUN_ALLOWED
 close_ready: $CLOSE_READY
 needs_human_confirmation: $NEEDS_HUMAN_CONFIRMATION
 blockers: "$BLOCKERS"
+close_blockers: "$CLOSE_BLOCKERS"
 unmet_criteria: "$UNMET_CRITERIA"
 scope_hash: "$(goalspec_scope_hash 2>/dev/null || echo "")"
 next_user_action: "$NEXT_USER_ACTION"
@@ -190,6 +203,7 @@ RUN_ALLOWED: $RUN_ALLOWED
 CLOSE_READY: $CLOSE_READY
 NEEDS_HUMAN_CONFIRMATION: $NEEDS_HUMAN_CONFIRMATION
 BLOCKERS: $BLOCKERS
+CLOSE_BLOCKERS: $CLOSE_BLOCKERS
 UNMET_CRITERIA: $UNMET_CRITERIA
 SCOPE_HASH: $(goalspec_scope_hash 2>/dev/null || echo "")
 NEXT_USER_ACTION: $NEXT_USER_ACTION

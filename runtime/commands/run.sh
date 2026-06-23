@@ -88,7 +88,13 @@ if [ -z "$machine_unmet" ] && [ -n "$judgment_unmet" ]; then
   deny "machine criteria satisfied; remaining judgment-kind criteria require human/Master resolution, not blind Subagent retry: $judgment_unmet"
 fi
 
-if goalspec_close_completion_gate >/dev/null 2>&1; then
+if [ -z "$machine_unmet" ] && [ -z "$judgment_unmet" ]; then
+  readiness_blockers="$(goalspec_close_readiness_blockers)"
+  if [ -n "$readiness_blockers" ]; then
+    echo "GOALSPEC_RUN_ALLOWED: false"
+    goalspec_close_readiness_print "$readiness_blockers"
+    exit 1
+  fi
   goalspec_close_write_package
   goalspec_state_set_status ready_to_close
   cat <<EOF

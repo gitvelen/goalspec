@@ -40,10 +40,11 @@ case "$state" in
     is_resume=true
     ;;
   running)
-    if gate_err="$(goalspec_close_completion_gate 2>&1)"; then
+    readiness_blockers="$(goalspec_close_readiness_blockers)"
+    if [ -z "$readiness_blockers" ]; then
       fail_close "close package is not generated yet; run /goalspec run to generate it before /goalspec close"
     else
-      fail_close "close package is not ready; /goalspec run must pass completion gate first: $gate_err"
+      fail_close "close package is not ready; /goalspec run must pass close-readiness first: $readiness_blockers"
     fi
     ;;
   *)
@@ -84,31 +85,41 @@ fi
 
 gate_status="$(yq e '.close.status // "not_started"' "$state_file")"
 if [ "$gate_status" = "not_started" ] || [ "$gate_status" = "failed" ] || [ "$gate_status" = "verifying" ]; then
-  checkpoint verifying
-  if ! gate_err="$(goalspec_close_completion_gate 2>&1)"; then
-    fail_close "$gate_err"
-  fi
-  if ! verify_err="$(goalspec_delivery_run_final_verification 2>&1)"; then
-    fail_close "final verification failed: $verify_err"
-  fi
-  if ! secret_hits="$(goalspec_delivery_scan_secrets 2>&1)"; then
-    fail_close "sensitive, large, or disallowed file detected: $secret_hits"
-  fi
-  if ! GOALSPEC_SCOPE_ROLE=system goalspec_scope_check_run; then
-    fail_close "scope-check failed"
-  fi
+  existing_history="$(yq e '.close.history_version // ""' "$state_file")"
+  if [ -n "$existing_history" ] && [ "$existing_history" != "null" ]; then
+    checkpoint completed_gate
+  else
+    checkpoint verifying
+    if goalspec_close_package_has_readiness; then
+      if ! readiness_err="$(goalspec_close_validate_readiness_snapshot 2>&1)"; then
+        fail_close "$readiness_err"
+      fi
+    else
+      if ! gate_err="$(goalspec_close_completion_gate 2>&1)"; then
+        fail_close "$gate_err"
+      fi
+    fi
+    if ! verify_err="$(goalspec_delivery_run_final_verification 2>&1)"; then
+      fail_close "final verification failed: $verify_err"
+    fi
+    if ! changed_err="$(goalspec_close_recheck_changed_files_hash 2>&1)"; then
+      fail_close "$changed_err"
+    fi
+    if ! secret_hits="$(goalspec_delivery_scan_secrets 2>&1)"; then
+      fail_close "sensitive, large, or disallowed file detected: $secret_hits"
+    fi
 
-  vname="$(yq e '.close.history_version // ""' "$state_file")"
-  if [ -z "$vname" ] || [ "$vname" = "null" ]; then
-    vname="$(goalspec_close_next_history_version)"
-    goalspec_close_apply_memory_patch
-    goalspec_close_archive_active "$vname"
-    chash="$(goalspec_contract_hash)"
-    git_base="$(yq e '.git.base_revision // ""' "$state_file")"
-    git_completed="$(goalspec_git_head)"
-    hdir="$GOALSPEC_ROOT/history/$vname"
-    changed_files="$(goalspec_git_changed_files "$git_base" | grep -v '^\.goalspec/' || true)"
-    cat > "$hdir/summary.yaml" <<YML
+    vname="$(yq e '.close.history_version // ""' "$state_file")"
+    if [ -z "$vname" ] || [ "$vname" = "null" ]; then
+      vname="$(goalspec_close_next_history_version)"
+      goalspec_close_apply_memory_patch
+      goalspec_close_archive_active "$vname"
+      chash="$(goalspec_contract_hash)"
+      git_base="$(yq e '.git.base_revision // ""' "$state_file")"
+      git_completed="$(goalspec_git_head)"
+      hdir="$GOALSPEC_ROOT/history/$vname"
+      changed_files="$(goalspec_git_changed_files "$git_base" | grep -v '^\.goalspec/' || true)"
+      cat > "$hdir/summary.yaml" <<YML
 version: $vname
 goal_id: $(yq e '.active_goal_id' "$state_file")
 closed_at: $(goalspec_now)
@@ -122,10 +133,11 @@ git:
 changed_files:
 $(echo "$changed_files" | sed 's/^/  - /' | grep -v '^  - $' || true)
 YML
-    yq e -i ".versions += [{\"version\": \"$vname\", \"goal_id\": \"$(yq e '.active_goal_id' "$state_file")\", \"closed_at\": \"$(goalspec_now)\", \"contract_hash\": \"$chash\", \"close_package_hash\": \"$(goalspec_close_package_hash)\"}]" "$GOALSPEC_ROOT/project/versions.yaml"
-    yq e -i ".close.history_version = \"$vname\"" "$state_file"
+      yq e -i ".versions += [{\"version\": \"$vname\", \"goal_id\": \"$(yq e '.active_goal_id' "$state_file")\", \"closed_at\": \"$(goalspec_now)\", \"contract_hash\": \"$chash\", \"close_package_hash\": \"$(goalspec_close_package_hash)\"}]" "$GOALSPEC_ROOT/project/versions.yaml"
+      yq e -i ".close.history_version = \"$vname\"" "$state_file"
+    fi
+    checkpoint completed_gate
   fi
-  checkpoint completed_gate
 fi
 
 branch="$(yq e '.close.branch // ""' "$state_file")"

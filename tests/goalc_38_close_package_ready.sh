@@ -76,6 +76,7 @@ echo "$out" | grep -q 'CLOSE_PACKAGE_READY: true' && ok "run reports close packa
 [ -f "$REPO/.goalspec/active/close-package.yaml" ] && ok "close package yaml exists" || bad "close package yaml missing"
 [ "$(yq e '.hashes.close_package_hash // ""' "$REPO/.goalspec/active/close-package.yaml")" != "null" ] && ok "close package hash recorded" || bad "close package hash missing"
 [ "$(yq e '.delivery.mode // ""' "$REPO/.goalspec/active/close-package.yaml")" = "github_pr" ] && ok "close package records delivery mode" || bad "close package missing delivery mode"
+[ "$(yq e '.readiness.criteria_ready // false' "$REPO/.goalspec/active/close-package.yaml")" = "true" ] && ok "close package records readiness snapshot" || bad "close package missing readiness snapshot"
 status_out="$($REPO_GS status)"
 echo "$status_out" | grep -q '^CLOSE_READY: true' && ok "status reports close ready" || bad "status does not report close ready"
 

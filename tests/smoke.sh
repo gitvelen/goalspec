@@ -172,7 +172,7 @@ ok approve-contract
 ok freeze
 
 # 12a. status reports goal-driven fields (GOALC #21)
-for fld in STATE GOAL FROZEN PROMPT_READY RUN_ALLOWED CLOSE_READY NEEDS_HUMAN_CONFIRMATION BLOCKERS UNMET_CRITERIA NEXT_USER_ACTION; do
+for fld in STATE GOAL FROZEN PROMPT_READY RUN_ALLOWED CLOSE_READY NEEDS_HUMAN_CONFIRMATION BLOCKERS CLOSE_BLOCKERS UNMET_CRITERIA NEXT_USER_ACTION; do
   "$GS" status | /bin/grep -q "^${fld}:" || fail "status missing $fld"
 done
 "$GS" status --json | yq e '.state' - >/dev/null || fail "status --json broken"

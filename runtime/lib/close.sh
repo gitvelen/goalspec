@@ -106,6 +106,57 @@ goalspec_close_validate_pass_evidence() {
   [ -z "$missing" ] || { echo "$missing"; return 1; }
 }
 
+goalspec_close_readiness_blockers() {
+  local cf="$GOALSPEC_ROOT/active/contract.yaml" state_file="$GOALSPEC_ROOT/active/state.yaml"
+  local blockers="" mpf="$GOALSPEC_ROOT/active/memory-patch.yaml"
+  [ -f "$cf" ] || { echo "contract_missing"; return 0; }
+  [ "$(yq e '.status // ""' "$cf")" = "frozen" ] || blockers="${blockers}contract_not_frozen "
+  [ "$(yq e '.contract_hash // ""' "$state_file")" = "$(goalspec_contract_hash)" ] || blockers="${blockers}contract_stale "
+  [ "$(yq e '.goal_hash // ""' "$state_file")" = "$(goalspec_goal_hash)" ] || blockers="${blockers}goal_stale "
+  [ "$(yq e '.goal_artifact_hash // ""' "$state_file")" = "$(goalspec_goal_artifact_hash)" ] || blockers="${blockers}goal_artifact_stale "
+  [ "$(yq e '.criteria_hash // ""' "$state_file")" = "$(goalspec_criteria_hash)" ] || blockers="${blockers}criteria_stale "
+  [ "$(yq e '.constraints_hash // ""' "$state_file")" = "$(goalspec_constraints_hash)" ] || blockers="${blockers}constraints_stale "
+  goalspec_scope_ensure_state_hash || blockers="${blockers}scope_stale "
+  [ "$(goalspec_close_blocking_questions_count)" -eq 0 ] || blockers="${blockers}blocking_questions "
+  [ -n "$(goalspec_close_required_criteria_ids)" ] || blockers="${blockers}criteria_missing "
+  goalspec_close_all_required_pass || blockers="${blockers}criteria_unmet "
+  goalspec_close_validate_pass_evidence >/dev/null || blockers="${blockers}pass_evidence_invalid "
+  if ! GOALSPEC_SCOPE_ROLE=system goalspec_scope_check_run >/dev/null 2>&1; then
+    blockers="${blockers}scope_projection "
+  fi
+  [ -f "$mpf" ] || blockers="${blockers}memory_patch_missing "
+  yq e '.patches | length' "$mpf" 2>/dev/null | grep -Eq '^[0-9]+$' || blockers="${blockers}memory_patch_invalid "
+  printf '%s\n' "$blockers" | sed 's/[[:space:]]*$//'
+}
+
+goalspec_close_readiness_pass() {
+  [ -z "$(goalspec_close_readiness_blockers)" ]
+}
+
+goalspec_close_readiness_print() {
+  local blockers="$1"
+  echo "CLOSE_PACKAGE_READY: false"
+  echo "CLOSE_BLOCKERS: ${blockers:-unknown}"
+  case " $blockers " in
+    *" scope_projection "*)
+      GOALSPEC_SCOPE_ROLE=system goalspec_scope_check_run >/dev/null 2>&1 || goalspec_scope_print_suggestions
+      echo "NEXT_USER_ACTION: Treat scope as a Constraints projection issue: run goalspec scope amend if the paths still serve the current Goal without changing semantics; use /goalspec reopen only if Goal, Criteria, or semantic Constraints changed."
+      ;;
+    *" scope_stale "*)
+      echo "NEXT_USER_ACTION: Run goalspec scope amend with a reason, then run /goalspec run again to regenerate close readiness."
+      ;;
+    *" memory_patch_missing "*|*" memory_patch_invalid "*)
+      echo "NEXT_USER_ACTION: Fix .goalspec/active/memory-patch.yaml, then run /goalspec run again."
+      ;;
+    *" criteria_unmet "*|*" pass_evidence_invalid "*)
+      echo "NEXT_USER_ACTION: Resolve stale or missing Criteria verdict/evidence, then run /goalspec run again."
+      ;;
+    *)
+      echo "NEXT_USER_ACTION: Fix the listed close-readiness blocker, then run /goalspec run again."
+      ;;
+  esac
+}
+
 goalspec_close_write_package() {
   local cpf="$GOALSPEC_ROOT/active/close-package.yaml"
   local md="$GOALSPEC_ROOT/active/close-package.md"
@@ -161,6 +212,13 @@ YML
   cat >> "$cpf" <<YML
 verification:
   commands: []
+readiness:
+  criteria_ready: true
+  scope_projection_ready: true
+  memory_ready: true
+  blockers: []
+  scope_hash: "$shash"
+  changed_files_hash: "$changed_hash"
 changed_files:
   business:
 YML
@@ -269,6 +327,32 @@ goalspec_close_validate_package_hashes() {
   [ -z "$bad" ] || { echo "close package stale: $bad"; return 1; }
 }
 
+goalspec_close_package_has_readiness() {
+  local cpf="$GOALSPEC_ROOT/active/close-package.yaml"
+  [ "$(yq e 'has("readiness")' "$cpf" 2>/dev/null)" = "true" ]
+}
+
+goalspec_close_validate_readiness_snapshot() {
+  local cpf="$GOALSPEC_ROOT/active/close-package.yaml" bad=""
+  goalspec_close_package_has_readiness || { echo "close package has no readiness snapshot"; return 1; }
+  [ "$(yq e '.readiness.criteria_ready // false' "$cpf")" = "true" ] || bad="${bad}criteria_ready "
+  [ "$(yq e '.readiness.scope_projection_ready // false' "$cpf")" = "true" ] || bad="${bad}scope_projection_ready "
+  [ "$(yq e '.readiness.memory_ready // false' "$cpf")" = "true" ] || bad="${bad}memory_ready "
+  [ "$(yq e '.readiness.scope_hash // ""' "$cpf")" = "$(goalspec_scope_hash)" ] || bad="${bad}scope_hash "
+  [ "$(yq e '.readiness.changed_files_hash // ""' "$cpf")" = "$(goalspec_changed_files_hash)" ] || bad="${bad}changed_files_hash "
+  [ "$(yq e '.readiness.blockers | length' "$cpf" 2>/dev/null || echo 1)" = "0" ] || bad="${bad}blockers "
+  [ -z "$bad" ] || { echo "close package readiness stale: $bad"; return 1; }
+}
+
+goalspec_close_recheck_changed_files_hash() {
+  local cpf="$GOALSPEC_ROOT/active/close-package.yaml" expected
+  expected="$(yq e '.hashes.changed_files_hash // ""' "$cpf")"
+  [ "$expected" = "$(goalspec_changed_files_hash)" ] || {
+    echo "changed files changed during final verification; run /goalspec run to regenerate the close package"
+    return 1
+  }
+}
+
 goalspec_close_completion_gate() {
   local cf="$GOALSPEC_ROOT/active/contract.yaml" state_file="$GOALSPEC_ROOT/active/state.yaml"
   [ -f "$cf" ] || { echo "no contract.yaml"; return 1; }
@@ -285,7 +369,11 @@ goalspec_close_completion_gate() {
   [ -n "$(goalspec_close_required_criteria_ids)" ] || { echo "no criteria found"; return 1; }
   goalspec_close_all_required_pass || { echo "required criteria do not all have fresh pass verdicts"; return 1; }
   goalspec_close_validate_pass_evidence >/dev/null || { echo "pass verdicts are stale or lack fresh evidence"; return 1; }
-  GOALSPEC_SCOPE_ROLE=system goalspec_scope_check_run || { echo "scope-check failed"; return 1; }
+  GOALSPEC_SCOPE_ROLE=system goalspec_scope_check_run || {
+    goalspec_scope_print_suggestions
+    echo "scope-check failed"
+    return 1
+  }
   local mpf="$GOALSPEC_ROOT/active/memory-patch.yaml"
   [ -f "$mpf" ] || { echo "memory-patch.yaml missing"; return 1; }
   yq e '.patches | length' "$mpf" 2>/dev/null | grep -Eq '^[0-9]+$' || { echo "memory-patch.yaml invalid"; return 1; }

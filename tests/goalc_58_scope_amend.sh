@@ -50,6 +50,17 @@ contract_after="$(yq e '.contract_hash' "$REPO/.goalspec/active/contract.yaml")"
 yq e '.amendments[0].allowed_paths[]' "$REPO/.goalspec/active/scope-amendments.yaml" | grep -Fxq 'tests/**' \
   && ok "scope amendment records allowed path" || bad "scope amendment missing allowed path"
 
+# Globs in effective allowed_paths must be treated as literal Goalspec patterns,
+# not expanded by the shell into existing filesystem paths before matching.
+mkdir -p "$REPO/artifacts/testing"
+echo x > "$REPO/artifacts/testing/report.json"
+"$REPO_GS" scope amend --allow 'artifacts/**' --reason 'test artifacts support this goal' >/dev/null
+if "$REPO_GS" scope-check >/dev/null 2>&1; then
+  ok "scope-check treats allowed globs as patterns without shell expansion"
+else
+  bad "scope-check expanded allowed globs through the shell"
+fi
+
 # forbidden_paths remain hard blockers.
 fresh_initialized_repo goalc-58-forbidden
 "$REPO_GS" new-goal "test" >/dev/null
@@ -111,5 +122,33 @@ fi
 grep -q 'CLOSE_PACKAGE_READY: true' /tmp/goalspec-58-legacy-run.out \
   && ok "legacy missing scope_hash is bootstrapped by run" \
   || bad "legacy run did not bootstrap scope_hash"
+
+# An all-pass run with an out-of-scope file should report close-readiness
+# blockers instead of reprinting the Goal-Driven Prompt.
+fresh_initialized_repo goalc-58-close-hint
+prepare_ready_to_close
+echo x > "$REPO/Caddyfile"
+yq e -i '.status = "running" | .close.status = "not_started"' "$REPO/.goalspec/active/state.yaml"
+if "$REPO_GS" run >/tmp/goalspec-58-run-readiness.out 2>&1; then
+  bad "run unexpectedly generated close package with Caddyfile outside allowed_paths"
+else
+  grep -q 'CLOSE_PACKAGE_READY: false' /tmp/goalspec-58-run-readiness.out \
+    && grep -q 'CLOSE_BLOCKERS: .*scope_projection' /tmp/goalspec-58-run-readiness.out \
+    && ! grep -q 'PROMPT_FILE:' /tmp/goalspec-58-run-readiness.out \
+    && ok "run reports close-readiness blocker without prompt" \
+    || bad "run did not report close-readiness blocker correctly"
+fi
+status_out="$("$REPO_GS" status)"
+echo "$status_out" | grep -q '^BLOCKERS: .*close_readiness' \
+  && echo "$status_out" | grep -q '^CLOSE_BLOCKERS: .*scope_projection' \
+  && ok "status reports close-readiness blocker" \
+  || bad "status omitted close-readiness blocker"
+if "$REPO_GS" close >/tmp/goalspec-58-close-hint.out 2>&1; then
+  bad "close unexpectedly passed with Caddyfile outside allowed_paths"
+else
+  grep -q 'close-readiness first: .*scope_projection' /tmp/goalspec-58-close-hint.out \
+    && ok "close from running points to close-readiness" \
+    || bad "close from running did not point to close-readiness"
+fi
 
 [ "$TESTS_FAIL" -eq 0 ]

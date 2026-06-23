@@ -84,6 +84,6 @@ If the run-loop is capped, stalled, blocked by judgment-kind Criteria, or report
 
 Use reopen only when the frozen Goal, Criteria, or Constraints are wrong, insufficient, contradictory, or newly conflict with the human's intended acceptance basis. Do not keep implementing, judging, or closing against an invalid frozen basis.
 
-Close only through `.goalspec/goalspec close` after the human runs `/goalspec close`. Do not manually replace it with git, push, PR, archive, state edits, or direct `status: closed` writes. Closure requires all required Criteria to have fresh Master pass verdicts, Constraints to remain respected, a current close package, final verification, and the configured delivery mode.
+Close only through `.goalspec/goalspec close` after the human runs `/goalspec close`. Do not manually replace it with git, push, PR, archive, state edits, or direct `status: closed` writes. Closure requires all required Criteria to have fresh Master pass verdicts, close-readiness to pass during `/goalspec run`, a current close package, final verification, post-verification changed-files recheck, and the configured delivery mode.
 
 <!-- GOALSPEC:END -->

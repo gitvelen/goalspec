@@ -92,6 +92,14 @@ goalspec_scope_suggest_patterns() {
   printf '%s' "$out" | sed '/^$/d' | sort -u
 }
 
+goalspec_scope_print_suggestions() {
+  [ -n "$GOALSPEC_SCOPE_LAST_UNATTRIBUTED" ] || return 0
+  echo "suggested allowed_paths:" >&2
+  goalspec_scope_suggest_patterns "$(printf '%s\n' "$GOALSPEC_SCOPE_LAST_UNATTRIBUTED" | tr ' ' '\n')" | sed 's/^/  - /' >&2
+  echo "next: if these files still serve the current Goal without changing Goal, Criteria, or semantic Constraints, run: goalspec scope amend --allow <glob> --reason <why>" >&2
+  echo "reopen only if the new paths change the Goal, Criteria, or semantic Constraints." >&2
+}
+
 goalspec_scope_pattern_hits_forbidden_changed_file() {
   local allow="$1" forbidden="$2" base files f pat
   base="$(goalspec_state_get 'git.base_revision')"
@@ -160,7 +168,7 @@ goalspec_scope_amend_allow() {
       yq e -i '.status = "running" | .close.status = "not_started" | .close.failed_at = null | .close.failure_reason = null | .close_package_hash = null' "$state_file"
       ;;
   esac
-  echo "scope amendment approved: $id"
+  echo "constraints projection amendment approved: $id"
   echo "scope_hash: $new_hash"
   echo "next: run /goalspec run to regenerate the close package if one existed"
 }
@@ -258,30 +266,24 @@ goalspec_scope_check_run() {
     if goalspec_git_is_framework_file "$f"; then continue; fi
     # forbidden by any contract forbidden_paths
     local pat hit_forbidden=0
-    local oldifs="$IFS"
-    IFS=$'\n'
-    for pat in $FORBIDDEN; do
+    while IFS= read -r pat; do
       [ -z "$pat" ] && continue
       if goalspec_path_matches "$pat" "$f"; then
         hit_forbidden=1; break
       fi
-    done
-    IFS="$oldifs"
+    done <<<"$FORBIDDEN"
     if [ "$hit_forbidden" = "1" ]; then
       forbidden_hits="${forbidden_hits}$f "
       continue
     fi
     # allowed by some contract allowed_paths?
     local attributed=0
-    oldifs="$IFS"
-    IFS=$'\n'
-    for pat in $ALLOWED; do
+    while IFS= read -r pat; do
       [ -z "$pat" ] && continue
       if goalspec_path_matches "$pat" "$f"; then
         attributed=1; break
       fi
-    done
-    IFS="$oldifs"
+    done <<<"$ALLOWED"
     if [ "$attributed" != "1" ]; then
       unattributed="${unattributed}$f "
     fi

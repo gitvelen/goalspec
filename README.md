@@ -521,8 +521,8 @@ If it is an extra improvement that does not affect current completion, close the
 
 1. Validate the close package and recompute every bound hash (contract, evidence, verdict, memory-patch, changed-files, suggested delivery, close package).
 2. Run final verification (test/build/lint/typecheck from `.goalspec/project/profile.yaml`).
-3. Scan for secrets, large files, and disallowed temp files.
-4. Re-run scope-check.
+3. Re-check the changed-files hash after final verification, so verification cannot silently add files after package review.
+4. Scan for secrets, large files, and disallowed temp files.
 5. Apply the memory patch to `.goalspec/project/**`.
 6. Archive active files to `.goalspec/history/vNNNN/` and update `project/versions.yaml`.
 7. Execute the configured delivery mode:
@@ -532,7 +532,7 @@ If it is an extra improvement that does not affect current completion, close the
    - `archive_only`: archive and close without git commits, push, or PR.
 8. Enter `closed`.
 
-Close is recoverable. If it fails mid-way it stops at a checkpoint; re-running `/goalspec close` continues from there without repeating the main commit. A stale close package (any bound hash changed since generation) is rejected — re-run `/goalspec run` to regenerate it.
+Close is recoverable. If it fails mid-way it stops at a checkpoint; re-running `/goalspec close` continues from there without repeating the main commit. A stale close package (any bound hash changed since generation) is rejected — re-run `/goalspec run` to regenerate it. Full scope/Constraints-projection readiness is handled by `/goalspec run` and `status`; close validates the reviewed package and rejects unreviewed deltas.
 
 AI tools must not replace `/goalspec close` with manual `git add`, `git commit`, `git push`, `gh pr create`, archive, or `status: closed` edits. If non-GitHub delivery is needed, set `.goalspec/project/profile.yaml` `delivery.mode` explicitly. On failure, report the CLI's blocker and next user action.
 

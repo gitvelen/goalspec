@@ -70,8 +70,8 @@ reopen 不等于“全部重做”。框架记录的是 Criteria/evidence/verdic
 
 ## Close Package 与收口
 
-当所有 required Criteria 都有 fresh Master pass verdict 后，再次运行 `.goalspec/goalspec run` 会生成 close package 并进入 `ready_to_close`。close package 绑定 contract/evidence/verdict/memory-patch/changed-files/delivery 的 hash——任一改变即 stale，`/goalspec close` 会拒绝并要求重新生成。
+当所有 required Criteria 都有 fresh Master pass verdict 后，再次运行 `.goalspec/goalspec run` 会先执行 close-readiness audit；通过后生成 close package 并进入 `ready_to_close`，失败则报告 `CLOSE_BLOCKERS`，不得继续盲目执行 prompt。close package 绑定 contract/evidence/verdict/memory-patch/changed-files/delivery 的 hash——任一改变即 stale，`/goalspec close` 会拒绝并要求重新生成。
 
 用户输入 `/goalspec close` 表示确认当前 close package，并一次性授权：应用长期记忆、归档 history，并执行 `.goalspec/project/profile.yaml` 中配置的 delivery mode（`github_pr` / `push_only` / `local_commit` / `archive_only`）。close 是可恢复的：中途失败会停在 checkpoint，再次运行 `/goalspec close` 从断点续跑，不重复主 commit。
 
-AI 不得绕过 close package hash 校验、final verification、scope-check 或 CLI checkpoint；close 失败时只报告 CLI 输出的 blocker 与 next user action。
+AI 不得绕过 close package hash 校验、close-readiness、final verification、verification 后 changed-files 复核或 CLI checkpoint；close 失败时只报告 CLI 输出的 blocker 与 next user action。

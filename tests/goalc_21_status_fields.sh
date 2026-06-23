@@ -25,7 +25,7 @@ YML
 
 # status output and --json.
 status_out="$("$REPO_GS" status)"
-for fld in STATE GOAL FROZEN PROMPT_READY RUN_ALLOWED CLOSE_READY NEEDS_HUMAN_CONFIRMATION BLOCKERS UNMET_CRITERIA NEXT_USER_ACTION; do
+for fld in STATE GOAL FROZEN PROMPT_READY RUN_ALLOWED CLOSE_READY NEEDS_HUMAN_CONFIRMATION BLOCKERS CLOSE_BLOCKERS UNMET_CRITERIA NEXT_USER_ACTION; do
   has_line_prefix "$status_out" "${fld}:" || bad "status missing $fld"
 done
 if case "$status_out" in *CURRENT_WORK_UNIT*) true;; *) false;; esac; then
@@ -38,7 +38,7 @@ ok "status has goal-driven fields"
 # --json mode parses and contains the same fields.
 json_out="$("$REPO_GS" status --json)"
 echo "$json_out" | yq e '.state' - >/dev/null || bad "status --json not parseable"
-for k in state goal frozen prompt_ready run_allowed close_ready needs_human_confirmation blockers unmet_criteria next_user_action; do
+for k in state goal frozen prompt_ready run_allowed close_ready needs_human_confirmation blockers close_blockers unmet_criteria next_user_action; do
   echo "$json_out" | yq e ".$k" - >/dev/null 2>&1 || bad "status --json missing $k"
 done
 ok "status --json has goal-driven fields"
