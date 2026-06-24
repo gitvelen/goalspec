@@ -28,18 +28,22 @@ constraints、regression-suite，正要填写 `criteria:[]` 与 `evidence_requir
 - **Success Model（最富矿，逐字段翻译）**：
   - `user_visible_success` → 正向 criterion（用户可感知的行为）；
   - `system_observable_success` → 正向 criterion（系统可观察的状态/输出）；
-  - `must_not_happen` → **每条都变成一条负向 criterion**（"不发生 X"），不得合并、不得省略；
+  - `must_not_happen` → **每条都变成一条负向 criterion**（"不发生 X"），**不得合并、不得省略、不得静默跳过**；
   - `minimum_acceptable_result` → 一条「最低线」criterion（低于此即未完成）；
   - `final_completion_signal` → 那条 `final: true` criterion（收口信号）。
 - **Scope**：`in_scope` → criteria；`out_of_scope` 与非目标 → **写进 constraints 或负向
   criterion，而不是正向 criteria**（避免把不做的事写成成功标准）。
-- **Risk Scan**：每条结论若隐含一个「必须如此」的行为 → 对应 criterion。
+- **Risk Scan**：**每条结论都必须评估**——落成对应 criterion，或显式移入 constraints；若判定与本 goal 无关而跳过，必须在 `questions.yaml` 写明理由，**不得静默遗漏**（曾发生 C 类数据隔离、migration schema 两条结论被静默跳过、零覆盖的案例）。
 
 完成扫描后核对两条不变量：
 
-1. **无漏分支**：goal.md 里每个目标分支都出现在追溯表中；
+1. **无漏分支**：goal.md 里每个目标分支都出现在追溯表中——**尤其是 `must_not_happen` 的每一条和 Risk Scan 的每一条结论**，必须各有一条 criterion 或 constraint 兜住（这两类最易被静默遗漏）；
 2. **无 orphan**：每条 criterion 都能回指到某个 goal branch；回指不上的，丢弃或移入
    `optional_criteria`。
+
+> 追溯表不是脑内过一遍，而是**先写下来的可见产物**：逐 section 列出 goal.md 的每个原子分支，
+> 每行标注 `→ CRIT-xxx` 或 `→ constraint` 或 `→ 跳过(理由写入 questions.yaml)`。先有这张表，
+> 再写 criteria；Step 5 会拿它反向核对。
 
 > 这一步把 compiler.md 原来那一行提示里漏掉的「产品视角完整性」补上：先保证**该覆盖的都覆盖了**，
 > 再谈每条写得好不好。
@@ -112,7 +116,7 @@ criterion；**每一项都要写成「有可观察结果」的具体 criterion�
 - 允许的落点域 → `allowed_paths`（宽域 glob，如 `src/**`、`tests/**`）；不得触碰的 →
   `forbidden_paths`（精确集合）。`allowed_paths` 不得为空。
 - 锁定的 regression → 作为 `required_regressions` / required evidence 注入。
-- **重跑 Step 1 的追溯表**查漏：是否仍有未覆盖的 goal branch？是否有新 orphan？
+- **用 Step 1 的覆盖清单反向逐条核对**：是否仍有未覆盖的 goal branch——**特别是 `must_not_happen` 与 Risk Scan 的每一条**？任何未覆盖的分支必须落成 criterion 或显式移入 constraints，不得静默遗漏。是否有新 orphan？
 - 完成后用自然语言向人类展示 Goal、Criteria、Constraints、out-of-scope、blocking questions
   （沿用 compiler.md 既有职责），把疑问写入 `questions.yaml`。
 
@@ -143,8 +147,6 @@ criterion；**每一项都要写成「有可观察结果」的具体 criterion�
 ```yaml
 - id: CRIT-PERF-001
   kind: machine
-  priority: P0
-  required_for_completion: true
   statement: 在 100 RPS 负载下 /search 的 P95 延迟 ≤ 300ms
   evidence_requirement_refs: [EVIDREQ-PERF]
 ```
@@ -154,8 +156,6 @@ criterion；**每一项都要写成「有可观察结果」的具体 criterion�
 ```yaml
 - id: CRIT-DEGRADE-001
   kind: machine
-  priority: P0
-  required_for_completion: true
   statement: 当上游 X 连续 10s 返回 503 时，用户侧不出现任何可见错误（降级为缓存/默认值）
   evidence_requirement_refs: [EVIDREQ-DEGRADE]
 ```

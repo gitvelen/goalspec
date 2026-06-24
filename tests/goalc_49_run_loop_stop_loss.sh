@@ -91,20 +91,14 @@ contract_hash: null
 criteria:
   - id: CRIT-001
     kind: machine
-    priority: P0
-    required_for_completion: true
     statement: behavior A observed
     evidence_requirement_refs: [EVIDREQ-001]
   - id: CRIT-002
     kind: machine
-    priority: P0
-    required_for_completion: true
     statement: behavior B observed
     evidence_requirement_refs: [EVIDREQ-001]
   - id: CRIT-FINAL-001
     kind: machine
-    priority: P0
-    required_for_completion: true
     final: true
     statement: final integration pass
     evidence_requirement_refs: [EVIDREQ-001]
@@ -129,20 +123,14 @@ contract_hash: null
 criteria:
   - id: CRIT-001
     kind: machine
-    priority: P0
-    required_for_completion: true
     statement: behavior A observed
     evidence_requirement_refs: [EVIDREQ-001]
   - id: CRIT-J-001
     kind: judgment
-    priority: P0
-    required_for_completion: true
     statement: the UX flow is acceptable to a human reviewer
     evidence_requirement_refs: [EVIDREQ-001]
   - id: CRIT-FINAL-001
     kind: machine
-    priority: P0
-    required_for_completion: true
     final: true
     statement: final integration pass
     evidence_requirement_refs: [EVIDREQ-001]
@@ -171,13 +159,10 @@ contract_hash: null
 criteria:
   - id: CRIT-001
     kind: bogus
-    priority: P0
-    required_for_completion: true
     statement: behavior A observed
     evidence_requirement_refs: [EVIDREQ-001]
   - id: CRIT-FINAL-001
     kind: machine
-    priority: P0
     final: true
     statement: final integration pass
     evidence_requirement_refs: [EVIDREQ-001]

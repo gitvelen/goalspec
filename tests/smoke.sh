@@ -130,15 +130,11 @@ contract_hash: null
 criteria:
   - id: CRIT-001
     kind: machine
-    priority: P0
-    required_for_completion: true
     statement: page loads with snake moving on tick
     pass_signals: ["snake moves"]
     evidence_requirement_refs: [EVIDREQ-001]
   - id: CRIT-FINAL-001
     kind: machine
-    priority: P0
-    required_for_completion: true
     final: true
     statement: all scenarios pass in browser
     pass_signals: ["green"]

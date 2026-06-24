@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# GOALC #34: criteria are required by default — a criterion without any
-#            required_for_completion/final/P0 flag must still block completion
-#            when it has no pass verdict.
+# GOALC #34: criteria are required by default — a criterion without a `final`
+#            flag is still required and must block completion when it has no
+#            pass verdict.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 fresh_initialized_repo goalc-34
@@ -10,8 +10,8 @@ make_minimal_goal_md "$REPO/.goalspec/active/goal.md"
 approve_intake_and_goal
 "$REPO_GS" compile >/dev/null
 
-# CRIT-002 has no priority/required_for_completion/final flags. Under the old
-# filter it was skipped; under "required by default" it must block completion.
+# CRIT-002 is a required criterion (no `final` flag) left unjudged below; under
+# "required by default" it must block completion.
 cat > "$REPO/.goalspec/active/contract.yaml" <<'YML'
 status: draft
 goal_hash: placeholder
@@ -20,8 +20,6 @@ contract_hash: null
 criteria:
   - id: CRIT-001
     kind: machine
-    priority: P0
-    required_for_completion: true
     statement: behavior A observed
     evidence_requirement_refs: [EVIDREQ-001]
   - id: CRIT-002
@@ -30,7 +28,6 @@ criteria:
     evidence_requirement_refs: [EVIDREQ-001]
   - id: CRIT-FINAL-001
     kind: machine
-    priority: P0
     final: true
     statement: final integration pass
     evidence_requirement_refs: [EVIDREQ-001]
@@ -76,7 +73,7 @@ evidence:
 YML
 EHASH="$(cur_evidence_hash)"
 
-# judge the flagged criteria pass, but LEAVE CRIT-002 (no flags) unjudged
+# judge CRIT-001 and the final criterion pass, but LEAVE CRIT-002 unjudged
 for c in CRIT-001 CRIT-FINAL-001; do
 cat > "$tmp/v-$c.yaml" <<YML
 criteria_ref: $c

@@ -98,14 +98,10 @@ contract_hash: null
 criteria:
   - id: CRIT-001
     kind: machine
-    priority: P0
-    required_for_completion: true
     statement: behavior A observed
     evidence_requirement_refs: [EVIDREQ-001]
   - id: CRIT-FINAL-001
     kind: machine
-    priority: P0
-    required_for_completion: true
     final: true
     statement: final integration pass
     evidence_requirement_refs: [EVIDREQ-001]

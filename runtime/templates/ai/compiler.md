@@ -8,7 +8,7 @@
 - `active/questions.yaml`
 
 Criteria 要求：
-- required Criteria 默认 required；不要生成重复的 `required: true`。
+- required Criteria 默认 required；criteria 无 `priority` / `required_for_completion` 字段（required 是默认行为），不要写。
 - 可选想法放入 `optional_criteria`，不得阻断收口。
 - 每条 Criterion 必须清晰、可判断、与 Goal 相关、最小化。
 - 不得把实现步骤、技术选型、内部任务或文件路径写成成功标准。

@@ -43,8 +43,6 @@ cat > "$REPO/.goalspec/active/contract.yaml" <<'YML'
 status: draft
 criteria:
   - id: CRIT-001
-    priority: P0
-    required_for_completion: true
     statement: behavior A observed
 evidence_requirements:
   - id: EVIDREQ-001
@@ -57,12 +55,8 @@ cat > "$REPO/.goalspec/active/contract.yaml" <<'YML'
 status: draft
 criteria:
   - id: CRIT-001
-    priority: P0
-    required_for_completion: true
     statement: the behavior is good and complete
   - id: CRIT-FINAL-001
-    priority: P0
-    required_for_completion: true
     final: true
     statement: final integration pass
 evidence_requirements:
@@ -76,12 +70,8 @@ cat > "$REPO/.goalspec/active/contract.yaml" <<'YML'
 status: draft
 criteria:
   - id: CRIT-001
-    priority: P0
-    required_for_completion: true
     statement: implement the snake module
   - id: CRIT-FINAL-001
-    priority: P0
-    required_for_completion: true
     final: true
     statement: final integration pass
 evidence_requirements:

@@ -63,16 +63,16 @@ goalspec_schema_contract_freeze() {
       echo "criteria ${id}: statement appears to encode implementation steps" >&2
       errs=$((errs+1))
     fi
-    # kind: every criterion must declare its verifiability class.
+    # kind: a criterion's verifiability class. Optional — defaults to machine.
     #   machine  — auto-loopable; Master judges from machine-checkable evidence.
     #   judgment — needs human/Master resolution; the run-loop will not blindly
-    #              retry these (Akshy: judgment work loops only to the degree the
-    #              checker can confirm the result).
+    #              retry these. Declare explicitly only when a criterion cannot
+    #              be machine-judged; omit for the common machine case.
     local kind
-    kind="$(yq e ".criteria[$idx].kind // \"\"" "$cf")"
+    kind="$(yq e ".criteria[$idx].kind // \"machine\"" "$cf")"
     case "$kind" in
       machine|judgment) ;;
-      *) echo "criteria ${id}: missing or invalid kind (expected machine|judgment)" >&2; errs=$((errs+1)) ;;
+      *) echo "criteria ${id}: invalid kind '$kind' (expected machine|judgment, or omit for machine)" >&2; errs=$((errs+1)) ;;
     esac
     # Decidable: must carry evidence_requirement_refs that resolve to defined
     # evidence_requirements, otherwise the Master cannot judge pass/fail from

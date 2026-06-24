@@ -36,10 +36,8 @@ project_memory_hash: placeholder
 contract_hash: null
 criteria:
   - id: CRIT-001
-    priority: P0
     statement: behavior A observed
   - id: CRIT-FINAL-001
-    priority: P0
     final: true
     statement: final integration pass
     evidence_requirement_refs: [EVIDREQ-001]
@@ -61,11 +59,9 @@ project_memory_hash: placeholder
 contract_hash: null
 criteria:
   - id: CRIT-001
-    priority: P0
     statement: behavior A observed
     evidence_requirement_refs: [EVIDREQ-NOPE]
   - id: CRIT-FINAL-001
-    priority: P0
     final: true
     statement: final integration pass
     evidence_requirement_refs: [EVIDREQ-NOPE]

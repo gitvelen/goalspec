@@ -54,12 +54,10 @@ contract_hash: null
 criteria:
   - id: CRIT-001
     kind: machine
-    priority: P0
     statement: User submits the core form and sees saved output.
     evidence_requirement_refs: [EVIDREQ-001]
   - id: CRIT-FINAL-001
     kind: machine
-    priority: P0
     final: true
     statement: Master Agent verifies the required criteria pass from evidence.
     evidence_requirement_refs: [EVIDREQ-001]
