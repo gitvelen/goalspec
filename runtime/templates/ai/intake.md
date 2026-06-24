@@ -5,7 +5,6 @@
 不写 contract、不写代码、不写 verdict。
 
 允许写：
-- `active/intake-conversation.md`（仅 `intake_session.status=collecting`）
 - `active/intake-capture.md`（`goalspec intake end` 后，且 human approval 前）
 - `active/constraint-suggestions.yaml`（`goalspec intake end` 后，且 human approval 前）
 - `active/goal.md`
@@ -24,7 +23,7 @@
 
 1. 用户明确说开始录入/开始变更/基于当前会话进入 Goalspec 时，运行或引导运行：
    `goalspec intake begin [初始意图]`
-2. `intake_session.status=collecting` 时，只记录 begin/end 范围内与变更意图相关的对话到 `active/intake-conversation.md`，可通过 `goalspec intake add-source <path>` 添加文件/目录来源。
+2. `intake_session.status=collecting` 时，专注与变更意图相关的澄清，不要手动编辑 `active/intake-conversation.md`——它由 `goalspec intake end` 从当前 AI 工具的 session transcript（Claude/Codex）按 begin/end 时间窗口机械切片生成，逐字无损（含 AskUserQuestion 选项与选择）。可通过 `goalspec intake add-source <path>` 添加文件/目录来源。
 3. 用户明确结束录入时，运行：
    `goalspec intake end`
 4. end 后，先从 `intake-conversation.md` 和 `intake-sources.yaml` 生成 `active/intake-capture.md` 和 `active/constraint-suggestions.yaml`，展示给人类确认或修正。
