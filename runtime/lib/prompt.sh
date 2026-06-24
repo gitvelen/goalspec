@@ -1,51 +1,19 @@
 #!/usr/bin/env bash
 # prompt.sh — frozen Goal/Criteria/Constraints artifacts and run prompt.
 
-goalspec_prompt_write_frozen_artifacts() {
+# Record the frozen hashes into state.yaml. The frozen Goal/Criteria/Constraints
+# are no longer materialized as separate files — contract.yaml is the single
+# frozen source (criteria/constraints are hashed as fields of it), and goal.md is
+# the frozen Goal. See hash.sh: goalspec_criteria_hash / goalspec_constraints_hash.
+goalspec_prompt_record_frozen_hashes() {
   local sf="$GOALSPEC_ROOT/active/state.yaml"
-  local cf="$GOALSPEC_ROOT/active/contract.yaml"
   local goal_hash contract_hash confirmed_at generated_at
   goal_hash="$(goalspec_goal_hash)"
   contract_hash="$(goalspec_contract_hash)"
   confirmed_at="$(yq e '[.approvals[] | select(.kind == "contract")] | .[-1].approved_at // ""' "$sf")"
   generated_at="$(goalspec_now)"
 
-  {
-    printf 'status: frozen\n'
-    printf 'source: goal.md\n'
-    printf 'goal_hash: "%s"\n' "$goal_hash"
-    printf 'contract_hash: "%s"\n' "$contract_hash"
-    printf 'confirmed_at: "%s"\n' "$confirmed_at"
-    printf 'content: |-\n'
-    sed 's/^/  /' "$GOALSPEC_ROOT/active/goal.md"
-  } > "$GOALSPEC_ROOT/active/goal.yaml"
-
-  {
-    printf 'status: frozen\n'
-    printf 'goal_hash: "%s"\n' "$goal_hash"
-    printf 'contract_hash: "%s"\n' "$contract_hash"
-    printf 'confirmed_at: "%s"\n' "$confirmed_at"
-    printf 'criteria:\n'
-    yq e '.criteria // []' "$cf" | sed 's/^/  /'
-    printf 'optional_criteria:\n'
-    yq e '.optional_criteria // []' "$cf" | sed 's/^/  /'
-  } > "$GOALSPEC_ROOT/active/criteria.yaml"
-
-  {
-    printf 'status: frozen\n'
-    printf 'goal_hash: "%s"\n' "$goal_hash"
-    printf 'contract_hash: "%s"\n' "$contract_hash"
-    printf 'confirmed_at: "%s"\n' "$confirmed_at"
-    printf 'constraints:\n'
-    yq e '.constraints // []' "$cf" | sed 's/^/  /'
-    printf 'allowed_paths:\n'
-    yq e '.allowed_paths // []' "$cf" | sed 's/^/  /'
-    printf 'forbidden_paths:\n'
-    yq e '.forbidden_paths // []' "$cf" | sed 's/^/  /'
-  } > "$GOALSPEC_ROOT/active/constraints.yaml"
-
   yq e -i ".goal_hash = \"$goal_hash\"" "$sf"
-  yq e -i ".goal_artifact_hash = \"$(goalspec_goal_artifact_hash)\"" "$sf"
   yq e -i ".criteria_hash = \"$(goalspec_criteria_hash)\"" "$sf"
   yq e -i ".constraints_hash = \"$(goalspec_constraints_hash)\"" "$sf"
   yq e -i ".confirmed_at = \"$confirmed_at\"" "$sf"
@@ -53,8 +21,9 @@ goalspec_prompt_write_frozen_artifacts() {
 }
 
 goalspec_prompt_generate() {
-  goalspec_prompt_write_frozen_artifacts
+  goalspec_prompt_record_frozen_hashes
   local sf="$GOALSPEC_ROOT/active/state.yaml"
+  local cf="$GOALSPEC_ROOT/active/contract.yaml"
   local pf="$GOALSPEC_ROOT/active/goal-driven-prompt.md"
   local goal_hash criteria_hash constraints_hash scope_hash generated_at confirmed_at
   goal_hash="$(yq e '.goal_hash' "$sf")"
@@ -88,19 +57,19 @@ $(sed 's/^/> /' "$GOALSPEC_ROOT/active/goal.md")
 ## Frozen Criteria For Success
 
 \`\`\`yaml
-$(yq e '.criteria' "$GOALSPEC_ROOT/active/criteria.yaml")
+$(yq e '.criteria // []' "$cf")
 \`\`\`
 
 ## Optional Criteria
 
 \`\`\`yaml
-$(yq e '.optional_criteria' "$GOALSPEC_ROOT/active/criteria.yaml")
+$(yq e '.optional_criteria // []' "$cf")
 \`\`\`
 
 ## Frozen Constraints
 
 \`\`\`yaml
-$(yq e '.constraints' "$GOALSPEC_ROOT/active/constraints.yaml")
+$(yq e '.constraints // []' "$cf")
 \`\`\`
 
 ## Effective Execution Scope

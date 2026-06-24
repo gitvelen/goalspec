@@ -11,6 +11,7 @@
 - 请求 reopen 时，要明确指出是 Goal / Criteria / Constraints 哪一部分失效，以及为什么这不是普通实现未完成问题。
 - reopen 后的重点是按 Criteria 粒度重建验收基础，而不是把内部任务清单从头再跑一遍。
 - 不改业务代码，不改 contract，不直接写 project memory，不写 close package，不收口。
+- 驱动 Subagent 时，须在其 work packet 指令中重申 Git 安全：Subagent 不得执行破坏性 git（`reset --hard` / `clean` / `checkout --` / `restore` / 隔离用 `stash`）——未提交的 `.goalspec/active/` 命脉被丢弃后不可恢复。详见 `core.md` Git 安全。
 
 允许写：
 - `active/reviews.yaml`

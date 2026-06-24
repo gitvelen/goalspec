@@ -12,8 +12,8 @@ S="$FRAMEWORK/skills/goalspec"
 # English adapter docs must (a) name the gates, (b) forbid self-initiation, and
 # (c) explicitly forbid executing `intake end` (the exact command that was abused).
 for f in "$T/AGENTS.md" "$T/CLAUDE.md"; do
-  grep -q 'human gates' "$f"         && ok "$f names the human gates"         || bad "$f missing 'human gates'"
-  grep -qi 'never self-initiate' "$f" && ok "$f forbids self-initiation"      || bad "$f missing 'never self-initiate'"
+  grep -q '人类门禁' "$f"             && ok "$f names the human gates"         || bad "$f missing '人类门禁'"
+  grep -q '绝不自启' "$f"             && ok "$f forbids self-initiation"      || bad "$f missing '绝不自启'"
   grep -q 'goalspec intake end' "$f"  && ok "$f names the intake-end command" || bad "$f missing 'intake end' naming"
 done
 
@@ -30,8 +30,8 @@ for f in "$T/AGENTS.md" "$T/CLAUDE.md"; do
   grep -q '确认并冻结契约' "$f" \
     && ok "$f requires stage-specific contract freeze confirmation" \
     || bad "$f missing stage-specific contract freeze confirmation"
-  grep -q 'Human-facing commands' "$f" \
-    && grep -q 'Agent CLI translation' "$f" \
+  grep -q '人类命令' "$f" \
+    && grep -q 'Agent CLI 翻译' "$f" \
     && ok "$f separates human commands from agent execution" \
     || bad "$f mixes human commands and agent execution"
 done

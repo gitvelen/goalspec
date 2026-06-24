@@ -33,6 +33,20 @@
    `goalspec intake apply-suggestions`
 6. 只有 package 已确认且 suggestions 已应用后，才把意图高保真结构化写入 `active/goal.md`。
 
+## Intake review package
+
+`goalspec intake end` 后，从 `active/intake-conversation.md`、`active/intake-sources.yaml`、已批准 source 快照、`active/intake-capture.md`、`active/constraint-suggestions.yaml` 生成并展示精简 review package，等人类阶段化确认。展示内容必须包含：
+
+- Goal summary：本次变更要达成的结果概要。
+- source material used：本次提炼所依据的来源。
+- required Criteria：判定 Goal 完成所需的必需成功标准。
+- hard Constraints plus allowed/forbidden paths：硬约束与允许/禁止的路径。
+- out-of-scope：显式排除的范围，防镀金。
+- blocking questions：未解决、会阻塞推进的问题。
+- suggested project/profile changes：建议合入 `project/constraints.yaml` 或 `project/profile.yaml` 的长期项。
+
+写 `.goalspec/project/**` 前需 `确认并应用 intake package`；冻结已 review 的 Goal/Criteria/Constraints 前需 `确认并冻结契约`。阶段化确认只授权对应阶段动作，永远不等于授权开始实施业务代码。
+
 ## 文件/目录来源
 
 `goalspec new-goal --source <path>` 或 `goalspec intake add-source <path>` 只登记来源、保存 snapshot/hash 或目录清单。AI 仍负责读取来源并提炼语义。

@@ -37,12 +37,7 @@ fi
 [ -f "$cf" ] || deny "contract.yaml is missing; Goal, Criteria, and Constraints are not frozen"
 [ "$(yq e '.status // ""' "$cf")" = "frozen" ] || deny "Goal, Criteria, and Constraints are not frozen"
 
-[ -f "$GOALSPEC_ROOT/active/goal.yaml" ] || deny "frozen Goal artifact is missing"
-[ -f "$GOALSPEC_ROOT/active/criteria.yaml" ] || deny "frozen Criteria artifact is missing"
-[ -f "$GOALSPEC_ROOT/active/constraints.yaml" ] || deny "frozen Constraints artifact is missing"
-
 [ "$(yq e '.goal_hash // ""' "$state_file")" = "$(goalspec_goal_hash)" ] || deny "frozen Goal is stale"
-[ "$(yq e '.goal_artifact_hash // ""' "$state_file")" = "$(goalspec_goal_artifact_hash)" ] || deny "frozen Goal artifact is stale"
 [ "$(yq e '.criteria_hash // ""' "$state_file")" = "$(goalspec_criteria_hash)" ] || deny "frozen Criteria are stale"
 [ "$(yq e '.constraints_hash // ""' "$state_file")" = "$(goalspec_constraints_hash)" ] || deny "frozen Constraints are stale"
 [ "$(yq e '.contract_hash // ""' "$state_file")" = "$(goalspec_contract_hash)" ] || deny "frozen contract is stale"

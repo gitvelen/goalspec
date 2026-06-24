@@ -11,9 +11,6 @@ Primary Subagent 可以把工作拆成 bounded、Criteria-linked work packets；
 - `.goalspec/artifacts/**`
 
 禁止写：
-- `active/goal.yaml`
-- `active/criteria.yaml`
-- `active/constraints.yaml`
 - `active/goal-driven-prompt.md`
 - `active/contract.yaml`
 - `active/verdict.yaml`
@@ -24,3 +21,5 @@ Primary Subagent 可以把工作拆成 bounded、Criteria-linked work packets；
 - `history/**`
 
 evidence 只记录事实，不记录结论。Subagent 和 Worker Subagents 不能宣布最终成功；Criteria 判定由 Master 输出，收口由人类通过 `/goalspec close` 触发。Subagent 不生成 close package，不执行 git/gh/归档/状态写入。
+
+**禁止执行破坏性 git 操作**——`git reset --hard`、`git clean`、`git checkout -- <file>`、`git checkout HEAD -- <file>`、`git restore`、以及用于隔离测试的 `git stash`，都会丢弃工作区、摧毁 `.goalspec/active/` 里未提交的命脉（`goal.md` / `contract.yaml`）且不可恢复。隔离测试用临时文件拷贝（`cp`）代替 `git stash`。只允许只读 git 和保护性 `git add` / `commit`；需要丢弃改动时停下问人类。详见 `core.md` 的 Git 安全。

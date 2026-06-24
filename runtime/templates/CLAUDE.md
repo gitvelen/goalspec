@@ -1,89 +1,75 @@
 <!-- GOALSPEC:BEGIN -->
 # Goalspec
 
-This project uses Goalspec. The project-local `.goalspec/` directory is the source of truth; this managed block is only a thin operating guide for Goalspec-managed work.
+> 快速判定：本块仅在人类发出 `/goalspec ...` 或明确要求一次正式 Goalspec 受管变更时生效；普通问答、调试、小修请忽略本块，按项目常规开发处理。
 
-## Scope And Priority
+本项目使用 Goalspec。项目本地 `.goalspec/` 目录是真相源；本受管块只是 Goalspec 受管工作的薄操作指南。
 
-Goalspec is explicit opt-in. Only enter this lifecycle when the human explicitly uses `/goalspec ...` or clearly asks to run a formal Goalspec-managed change. Otherwise, handle the request as normal development work, follow the project's ordinary guidance, do not run `.goalspec/goalspec ...`, and do not self-upgrade casual requests into this workflow.
+## 范围与优先
 
-When a request is Goalspec-managed, this block governs the Goalspec gates. For detailed role rules, read `.goalspec/ai/core.md`; do not execute from memory.
+Goalspec 是显式 opt-in。只有当人类显式使用 `/goalspec ...`，或清楚要求执行一次正式的 Goalspec 受管变更时，才进入该生命周期。否则按普通开发工作处理：遵循项目常规指导、不运行 `.goalspec/goalspec ...`、不得把普通请求擅自升级为 Goalspec 生命周期。
 
-## Start Here
+当请求属于 Goalspec 受管时，门禁以本块为准。详细角色规则读 `.goalspec/ai/core.md`，勿凭记忆执行。
 
-Before Goalspec-managed work, run or read:
+## 开始
+
+Goalspec 受管工作前，运行或读取：
 
 ```bash
 .goalspec/goalspec status
 ```
 
-Follow `STATE`, `FROZEN`, `PROMPT_READY`, `RUN_ALLOWED`, `CLOSE_READY`, `NEEDS_HUMAN_CONFIRMATION`, `BLOCKERS`, `UNMET_CRITERIA`, and especially `NEXT_USER_ACTION`.
+按 `STATE`、`FROZEN`、`PROMPT_READY`、`RUN_ALLOWED`、`CLOSE_READY`、`NEEDS_HUMAN_CONFIRMATION`、`BLOCKERS`、`UNMET_CRITERIA`，尤其 `NEXT_USER_ACTION` 行动。
 
-Only `closed` means the change is fully closed and another `/goalspec start <intent>` may begin.
+只有 `closed` 表示本次变更已完整收口，才可开启下一次 `/goalspec start <intent>`。
 
-## Human Command Map
+## 人类命令映射
 
-Human-facing commands are translated mechanically. Agent CLI translation is allowed only for the matching human input below.
+人类命令被机械翻译为 Agent CLI 调用，且仅允许下表中匹配的人类输入触发对应翻译。
 
-| Human input | Agent CLI translation | Stop point |
+| 人类命令 | Agent CLI 翻译 | 停止点 |
 | --- | --- | --- |
-| `/goalspec status` | `.goalspec/goalspec status` | Report state and `NEXT_USER_ACTION`. |
-| `/goalspec start <intent>` | Run status first, then `.goalspec/goalspec start "<intent>"` only from `no_goal` or `closed`. | Intake is open; do not implement. |
-| `/goalspec source <path>` | `.goalspec/goalspec source <path>` | Source is added; do not close intake. |
-| `/goalspec end` | `.goalspec/goalspec end` | Draft and show the review package; wait for stage-specific confirmation. |
-| `确认并应用 intake package` | `.goalspec/goalspec approve intake-package`, then `.goalspec/goalspec intake apply-suggestions` | Stop after applying confirmed suggestions. |
-| `确认并冻结契约` | Run only the status-required review, approval, and freeze commands for the reviewed Goal/Criteria/Constraints. | Stop after `.goalspec/active/goal-driven-prompt.md` is generated; do not implement. |
-| `/goalspec run` | `.goalspec/goalspec run` | If allowed, read the full prompt before business-code edits; if a close package is ready, show it and stop. |
-| `/goalspec close` | `.goalspec/goalspec close` | Report success or the CLI blocker; never replace close manually. |
-| `/goalspec reopen <reason>` | `.goalspec/goalspec reopen <reason>` | Draft impact and revised contract material; wait for re-review and re-freeze. |
+| `/goalspec status` | `.goalspec/goalspec status` | 报告状态与 `NEXT_USER_ACTION`。 |
+| `/goalspec start <intent>` | 先运行 status，再仅从 `no_goal` 或 `closed` 执行 `.goalspec/goalspec start "<intent>"`。 | intake 已开启；勿实施。 |
+| `/goalspec source <path>` | `.goalspec/goalspec source <path>` | source 已添加；勿关闭 intake。 |
+| `/goalspec end` | `.goalspec/goalspec end` | 起草并展示 review package；等阶段化确认。 |
+| `确认并应用 intake package` | `.goalspec/goalspec approve intake-package`，再 `.goalspec/goalspec intake apply-suggestions` | 应用已确认的建议后停止。 |
+| `确认并冻结契约` | 仅运行 status 所要求的 review、approve、freeze 命令（针对已 review 的 Goal/Criteria/Constraints）。 | 生成 `.goalspec/active/goal-driven-prompt.md` 后停止；勿实施。 |
+| `/goalspec run` | `.goalspec/goalspec run` | 若允许，读取 prompt 后进入 Master/Subagent 自主 loop，直到所有 required Criteria 拿到 fresh Master pass、或触发 stop condition；全 pass 后再次 run 生成 close package 并停止。 |
+| `/goalspec close` | `.goalspec/goalspec close` | 报告成功或 CLI blocker；绝不手动替代 close。 |
+| `/goalspec reopen <reason>` | `.goalspec/goalspec reopen <reason>` | 起草影响与修订后的契约材料；等重新 review 与重新 freeze。 |
 
-`/goalspec next` is not part of the goal-driven command surface.
+## 人类门禁
 
-## Hard Gates
+`start`、`end`、`run`、`close` 是人类门禁：仅当人类发出对应的 `/goalspec` 斜杠命令时，才执行匹配的 `.goalspec/goalspec <cmd>`，绝不自启。细则（不得因意图已采集自跑 `goalspec intake end`、不得因 Criteria 看似可满足自跑 `run`、不得因 close package 已存在自跑 `close`、裸"确认/继续/ok/沉默"不算授权）见 `.goalspec/ai/core.md`。
 
-`start`, `end`, `run`, and `close` are human gates. Execute the matching `.goalspec/goalspec <cmd>` only when the human issues the exact slash-command; never self-initiate them.
+## Intake 与 Freeze
 
-- Do not run `goalspec intake end` or `.goalspec/goalspec intake end` because the intent looks captured.
-- Do not run `/goalspec run` or `.goalspec/goalspec run` because Criteria look satisfiable.
-- Do not run `/goalspec close` or `.goalspec/goalspec close` because a close package exists.
-- Bare "确认", "继续", "ok", or silence is not permission to implement, freeze, or close. `继续` means run status and report the next action unless it explicitly includes `/goalspec run` or `/goalspec close`.
+intake 期间：记录会话；只问 Goal/Criteria/Constraints/scope/risk/用户可见行为相关问题；添加已批准 source。不得冻结工件、生成 Goal-Driven Prompt、修改业务代码、或自行判定 intake 已结束。
 
-## Intake And Freeze
+`/goalspec end` 后：从 `.goalspec/active/intake-conversation.md`、`.goalspec/active/intake-sources.yaml`、已批准 source 快照、`.goalspec/active/intake-capture.md`、`.goalspec/active/constraint-suggestions.yaml` 生成并展示精简 review package（七项明细见 `.goalspec/ai/intake.md`），等阶段化确认。
 
-During intake, capture conversation, ask only Goal/Criteria/Constraints/scope/risk/user-visible behavior questions, and add approved sources. Do not freeze artifacts, generate the Goal-Driven Prompt, modify business code, or decide intake is finished.
+写 `.goalspec/project/**` 前需 `确认并应用 intake package`；冻结已 review 的 Goal/Criteria/Constraints 前需 `确认并冻结契约`。确认永远不等于开始实施。
 
-After `/goalspec end`, generate and show a concise review package from `.goalspec/active/intake-conversation.md`, `.goalspec/active/intake-sources.yaml`, approved source snapshots, `.goalspec/active/intake-capture.md`, and `.goalspec/active/constraint-suggestions.yaml`:
+## Criteria 审查最低要求
 
-- Goal summary
-- source material used
-- required Criteria
-- hard Constraints plus allowed/forbidden paths
-- out-of-scope
-- blocking questions
-- suggested project/profile changes
+展示给人类的每条 required Criterion 需含：
 
-Before writing `.goalspec/project/**` from suggestions, require `确认并应用 intake package`. Before freezing the reviewed Goal/Criteria/Constraints, require `确认并冻结契约`. Confirmation never starts implementation.
+- `failure means incomplete`：为何未通过此项意味着 Goal 未完成。
+- `observable result`：Master 可检查的行为或状态。
+- `evidence path`：能证明它的 evidence 要求或运行时边界。
 
-## Criteria Review Minimum
+保持 required Criteria 清晰、可据证据判断、与 Goal 相关、最小化。nice-to-have 移入 `optional_criteria`；执行边界移入 Constraints。起草方法论（产品覆盖 / 工程有效性 / 测试覆盖 / 可验收性 四视角，主线为覆盖 goal.md 所有目标分支）见 goalspec skill 的 `references/criteria-writing.md`；角色细则见 `.goalspec/ai/compiler.md`。
 
-For every required Criterion shown to the human, include:
+## Run / Reopen / Close
 
-- `failure means incomplete`: why failing this item means the Goal is not done.
-- `observable result`: the behavior or state the Master can inspect.
-- `evidence path`: the evidence requirement or runtime boundary that can prove it.
+当显式要求 `/goalspec run` 时，运行 `.goalspec/goalspec run`。若打印 `GOALSPEC_RUN_ALLOWED: false`，停下并报告 blocker；若允许，修改业务代码前完整读取 `.goalspec/active/goal-driven-prompt.md`，再按其 Master/Subagent loop 自主推进：Master 对未通过的 required Criteria 驱动 Primary Subagent（可委派 bounded Worker Subagents）收集 evidence；Master 从 fresh evidence 经 `.goalspec/goalspec judge apply` 路径判定每条 Criteria（让 iteration/cap/stalled 计数生效）；未全 pass 且仍能进展时继续该循环，不得因一次 attempt 完成、失败或自述完成就宣布成功。
 
-Keep required Criteria clear, decidable from evidence, Goal-relevant, and minimal. Move nice-to-have items to `optional_criteria`. Move execution boundaries to Constraints. Do not write implementation steps, file paths, technologies, internal tasks, or test commands as success standards unless the human explicitly makes them part of the Goal.
+Subagent 可产出 evidence，但不得宣布最终成功；仅 `evaluated_by: master` 的 verdict 可判定 Criteria。测试通过、Subagent 自述、evidence 文本都不构成收口。
 
-## Run, Reopen, Close
+run-loop（即上述 Master/Subagent 循环）在以下 stop condition 任一成立时停下，并报告 status 的 `NEXT_USER_ACTION`，勿盲目重试：所有 required Criteria 拿到 fresh Master pass（loop 目的达成，停止实施）；iteration 触顶被 `capped`（默认 8 轮，需 `/goalspec close` 或 `/goalspec reopen` 重置）；`stalled`（默认连续 3 轮无 verdict/evidence 进展，疑似 spec 缺陷，需 `/goalspec reopen`）；judgment 类 Criteria 阻塞（需人类/Master 裁决，非 Subagent 重试）；或 stale/缺失 prompt。
 
-When `/goalspec run` is explicitly requested, run `.goalspec/goalspec run`. If it prints `GOALSPEC_RUN_ALLOWED: false`, stop and report the blocker. If it is allowed, read `.goalspec/active/goal-driven-prompt.md` in full before modifying business code, then follow that prompt's frozen Goal, Criteria, and Constraints.
+reopen 仅用于冻结的 Goal/Criteria/Constraints 本身错误、不足、矛盾、或与人类新的验收口径冲突；细则见 `.goalspec/ai/core.md`。
 
-The Subagent may produce evidence, but cannot declare final success. Only Master verdicts with `evaluated_by: master` can judge Criteria. Passing tests, Subagent self-reports, and evidence text are not closure.
-
-If the run-loop is capped, stalled, blocked by judgment-kind Criteria, or reports a stale/missing prompt, stop and report status' `NEXT_USER_ACTION`. Do not retry blindly.
-
-Use reopen only when the frozen Goal, Criteria, or Constraints are wrong, insufficient, contradictory, or newly conflict with the human's intended acceptance basis. Do not keep implementing, judging, or closing against an invalid frozen basis.
-
-Close only through `.goalspec/goalspec close` after the human runs `/goalspec close`. Do not manually replace it with git, push, PR, archive, state edits, or direct `status: closed` writes. Closure requires all required Criteria to have fresh Master pass verdicts, close-readiness to pass during `/goalspec run`, a current close package, final verification, post-verification changed-files recheck, and the configured delivery mode.
-
+close 仅在人类运行 `/goalspec close` 后经 `.goalspec/goalspec close` 完成，不得用 git、push、PR、归档、状态编辑或直接写 `status: closed` 替代。收口需所有 required Criteria 拿到 fresh Master pass verdict、close-readiness 在 `/goalspec run` 中通过、当前 close package、最终验证、验证后 changed-files 复核、以及已配置的 delivery mode。
 <!-- GOALSPEC:END -->

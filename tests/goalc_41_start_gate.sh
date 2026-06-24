@@ -45,13 +45,27 @@ fi
 # --- closed: a new goal MAY start (the only non-no_goal startable state) ---
 fresh_initialized_repo goalc-41-closed
 "$REPO_GS" new-goal "prior" >/dev/null
-# Simulate the terminal state of a prior, fully-closed goal.
+g_prior="$(yq e '.active_goal_id' "$REPO/.goalspec/active/state.yaml")"
+# Simulate the terminal state of a prior, fully-closed goal: status closed AND
+# recorded in versions.yaml (real close writes both; the version record is what
+# the next goal_id sequence counts from).
 yq e -i '.status = "closed"' "$REPO/.goalspec/active/state.yaml"
+mkdir -p "$REPO/.goalspec/project"
+cat > "$REPO/.goalspec/project/versions.yaml" <<YML
+versions:
+  - version: v0001
+    goal_id: $g_prior
+    closed_at: "2026-06-22T11:25:15Z"
+YML
 if "$REPO_GS" new-goal "next" >/dev/null 2>&1; then
   ok "new-goal allowed from closed"
 else
   bad "new-goal rejected from closed state"
 fi
+g_next="$(yq e '.active_goal_id' "$REPO/.goalspec/active/state.yaml")"
+[ "$g_next" != "$g_prior" ] \
+  && ok "new-goal minted a fresh id ($g_prior -> $g_next), not the stale one" \
+  || bad "new-goal reused the stale closed goal id ($g_prior)"
 [ "$(yq e '.status' "$REPO/.goalspec/active/state.yaml")" != "closed" ] \
   && ok "closed state advanced to a fresh goal" \
   || bad "still closed after new-goal"

@@ -26,7 +26,7 @@ Goalspec 默认是显式启用（opt-in）模式。只有当人类明确发出 `
 6. 不要自评完成。Criteria 判定只能来自 Master verdict；完整收口只能来自 `goalspec close`。
 7. 不得用手写 git/gh 命令替代 `.goalspec/goalspec close`，也不得直接把状态写成 `closed`。
 8. 非 `closed`/`no_goal` 状态下，不得开启下一次 `/goalspec start`。
-9. `start`/`end`/`run`/`close` 是人类门禁：只有当人类显式发出对应 `/goalspec` 斜杠命令时，你才执行 `.goalspec/goalspec <cmd>`，绝不自启——不得因为"意图已采集完"就自己跑 `intake end`（草拟好 intake package 后停下，等人类敲 `/goalspec end`）；不得因为"Criteria 看起来满足"就自己跑 `run`；不得因为"close package 已存在"就自己跑 `close`。裸 "确认/继续/好的/沉默"都不等于这些斜杠命令；审批必须使用阶段化短语，如 `确认并应用 intake package` 或 `确认并冻结契约`。
+9. `start`/`end`/`run`/`close` 是人类门禁：只有当人类显式发出对应 `/goalspec` 斜杠命令时，你才执行 `.goalspec/goalspec <cmd>`，绝不自启——不得因为"意图已采集完"就自己跑 `intake end`（草拟好 intake package 后停下，等人类敲 `/goalspec end`）；不得因为"Criteria 看起来满足"就自己跑 `run`；不得因为"close package 已存在"就自己跑 `close`。裸 "确认/继续/好的/沉默"都不等于这些斜杠命令；审批必须使用阶段化短语，如 `确认并应用 intake package` 或 `确认并冻结契约`，且这些阶段化确认只授权对应阶段动作，永远不等于授权开始实施业务代码。
 10. 若用户没有显式进入 Goalspec，不得运行 `.goalspec/goalspec ...` 命令；普通问答、调试、小修或一次性工作默认不走框架。
 
 ## 权威链
@@ -75,3 +75,13 @@ reopen 不等于“全部重做”。框架记录的是 Criteria/evidence/verdic
 用户输入 `/goalspec close` 表示确认当前 close package，并一次性授权：应用长期记忆、归档 history，并执行 `.goalspec/project/profile.yaml` 中配置的 delivery mode（`github_pr` / `push_only` / `local_commit` / `archive_only`）。close 是可恢复的：中途失败会停在 checkpoint，再次运行 `/goalspec close` 从断点续跑，不重复主 commit。
 
 AI 不得绕过 close package hash 校验、close-readiness、final verification、verification 后 changed-files 复核或 CLI checkpoint；close 失败时只报告 CLI 输出的 blocker 与 next user action。
+
+## Git 安全：未提交工作区是命脉
+
+`.goalspec/active/` 的 `goal.md`、`contract.yaml`、`intake-capture.md` 等是 intake 智慧结晶的**未提交命脉**——它们从未 `git add`，一旦被 git 操作摧毁就**无法从 git 对象库恢复**。任何 role（Master / Primary / Worker Subagent）都**禁止执行会丢弃工作区或未提交改动的破坏性 git 操作**：
+
+- 禁止：`git reset --hard`、`git clean -fd`、`git checkout -- <file>`、`git checkout HEAD -- <file>`、`git restore <file>` / `git restore --worktree`、`git stash drop` / `git stash clear`。这些会不可逆地摧毁未提交工作。
+- 隔离测试**不要用 `git stash`**——它会把 tracked 改动整体移走，pop 冲突或失败即丢失；改用临时文件拷贝（`cp x /tmp/x.bak`，测完 `cp` 回来）。
+- 允许：只读 git（`status` / `diff` / `log` / `show` / `ls-files`）和**保护性**的 `git add` / `git commit`（固化工作，而非丢弃）。
+
+一次 `git reset --hard` 或误点 IDE 的 "Discard Changes" 就能把整轮未提交契约（如 78 条 contract）砸回旧快照且不可恢复。AI 不得成为这个风险的来源；任何需要丢弃改动的情形，停下问人类。

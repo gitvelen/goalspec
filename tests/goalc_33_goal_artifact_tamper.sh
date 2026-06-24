@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# GOALC #33: tampering the frozen goal.yaml artifact after freeze must make
-#            `goalspec run` refuse execution (goal_artifact_hash binding).
+# GOALC #33: tampering the frozen Goal (goal.md) after freeze must make
+#            `goalspec run` refuse execution (goal_hash binding). The frozen
+#            Goal is goal.md itself; there is no longer a separate goal.yaml.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 fresh_initialized_repo goalc-33
@@ -10,19 +11,19 @@ approve_intake_and_goal
 compile_to_awaiting_confirmation
 do_freeze
 
-# sanity: state is prompt_ready and goal_artifact_hash is recorded
-[ -n "$(yq e '.goal_artifact_hash // ""' "$REPO/.goalspec/active/state.yaml")" ] \
-  && ok "freeze recorded goal_artifact_hash" || bad "freeze did not record goal_artifact_hash"
+# sanity: freeze recorded the goal_hash baseline
+[ -n "$(yq e '.goal_hash // ""' "$REPO/.goalspec/active/state.yaml")" ] \
+  && ok "freeze recorded goal_hash" || bad "freeze did not record goal_hash"
 
-# tamper the frozen Goal artifact
-printf '\nTAMPER\n' >> "$REPO/.goalspec/active/goal.yaml"
+# tamper the frozen Goal (goal.md) after freeze
+printf '\nTAMPER\n' >> "$REPO/.goalspec/active/goal.md"
 
 out="$("$REPO_GS" run 2>&1)"
 rc=$?
 if [ "$rc" -ne 0 ] && ! printf '%s\n' "$out" | grep -q '^GOALSPEC_RUN_ALLOWED: true'; then
-  ok "run denied after goal.yaml tamper"
+  ok "run denied after goal.md tamper"
 else
-  bad "run allowed after goal.yaml tamper"
+  bad "run allowed after goal.md tamper"
 fi
 
 [ "$TESTS_FAIL" -eq 0 ]

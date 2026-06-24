@@ -6,21 +6,8 @@ set -uo pipefail
 state_file="$GOALSPEC_ROOT/active/state.yaml"
 
 ensure_active_goal() {
-  local gid
   goalspec_assert_can_start || exit 1
-
-  gid="$(goalspec_new_goal_id)"
-  cp "$GOALSPEC_ROOT/runtime/templates/active/state.yaml" "$state_file"
-  yq e -i ".active_goal_id = \"$gid\"" "$state_file"
-  yq e -i ".status = \"spec_drafting\"" "$state_file"
-  yq e -i ".git.base_revision = \"$(goalspec_git_head)\"" "$state_file"
-  yq e -i ".git.current_revision = \"$(goalspec_git_head)\"" "$state_file"
-  cp "$GOALSPEC_ROOT/runtime/templates/active/goal.md" "$GOALSPEC_ROOT/active/goal.md"
-  cp "$GOALSPEC_ROOT/runtime/templates/active/intake-sources.yaml" "$GOALSPEC_ROOT/active/intake-sources.yaml"
-  cp "$GOALSPEC_ROOT/runtime/templates/active/intake-conversation.md" "$GOALSPEC_ROOT/active/intake-conversation.md"
-  cp "$GOALSPEC_ROOT/runtime/templates/active/intake-capture.md" "$GOALSPEC_ROOT/active/intake-capture.md"
-  cp "$GOALSPEC_ROOT/runtime/templates/active/constraint-suggestions.yaml" "$GOALSPEC_ROOT/active/constraint-suggestions.yaml"
-  yq e -i ".goal_hash = \"$(goalspec_goal_hash)\"" "$state_file"
+  goalspec_reset_active_workspace
 }
 
 sub="${1:-}"; shift || true

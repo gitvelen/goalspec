@@ -38,13 +38,6 @@ goalspec_goal_hash() {
   goalspec_hash_file "$GOALSPEC_ROOT/active/goal.md"
 }
 
-# Hash of the frozen Goal artifact (goal.yaml), generated at freeze. Bound in
-# state.goal_artifact_hash and checked by run/status so post-freeze tampering of
-# the frozen Goal artifact is detected (parallel to criteria/constraints hashes).
-goalspec_goal_artifact_hash() {
-  goalspec_hash_file "$GOALSPEC_ROOT/active/goal.yaml"
-}
-
 goalspec_contract_hash() {
   local cf="$GOALSPEC_ROOT/active/contract.yaml"
   [ -f "$cf" ] || { echo ""; return 1; }
@@ -80,12 +73,35 @@ goalspec_scope_hash() {
   echo "sha256:${h}"
 }
 
+# Hash of the criteria content (criteria + optional_criteria) as fields of
+# contract.yaml. The frozen criteria are no longer a separate file; contract.yaml
+# is the single frozen source, so this hashes its criteria fields directly.
+# (yq v4 here rejects {key: .val} object literals, so extract fields individually.)
 goalspec_criteria_hash() {
-  goalspec_hash_file "$GOALSPEC_ROOT/active/criteria.yaml"
+  local cf="$GOALSPEC_ROOT/active/contract.yaml"
+  [ -f "$cf" ] || { echo ""; return 1; }
+  local stripped h
+  stripped="$(
+    yq e '.criteria // []' "$cf" 2>/dev/null
+    yq e '.optional_criteria // []' "$cf" 2>/dev/null
+  )"
+  h="$(printf '%s' "$stripped" | sha256sum | awk '{print $1}')"
+  echo "sha256:${h}"
 }
 
+# Hash of the constraints content (constraints + allowed_paths + forbidden_paths)
+# as fields of contract.yaml. Parallel to goalspec_criteria_hash.
 goalspec_constraints_hash() {
-  goalspec_hash_file "$GOALSPEC_ROOT/active/constraints.yaml"
+  local cf="$GOALSPEC_ROOT/active/contract.yaml"
+  [ -f "$cf" ] || { echo ""; return 1; }
+  local stripped h
+  stripped="$(
+    yq e '.constraints // []' "$cf" 2>/dev/null
+    yq e '.allowed_paths // []' "$cf" 2>/dev/null
+    yq e '.forbidden_paths // []' "$cf" 2>/dev/null
+  )"
+  h="$(printf '%s' "$stripped" | sha256sum | awk '{print $1}')"
+  echo "sha256:${h}"
 }
 
 goalspec_prompt_hash() {

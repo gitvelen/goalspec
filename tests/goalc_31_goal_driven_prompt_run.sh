@@ -93,7 +93,9 @@ echo "$out" | /bin/grep -q '# Goal-Driven' \
   && ok "run prints full prompt" \
   || bad "run did not print full prompt"
 
-echo "tamper" >> "$REPO/.goalspec/active/criteria.yaml"
+# tamper a criterion in the frozen contract.yaml; its criteria field-hash must
+# no longer match the recorded criteria_hash, so run refuses (stale).
+yq e -i '.criteria[0].statement += " TAMPER"' "$REPO/.goalspec/active/contract.yaml"
 if "$REPO_GS" run >/dev/null 2>"$TESTS_TMP_ROOT/run-stale.err"; then
   bad "run succeeded with stale prompt"
 else

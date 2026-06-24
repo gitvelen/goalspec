@@ -10,8 +10,11 @@ I="$FRAMEWORK/runtime/commands/install_ai.sh"
 R="$FRAMEWORK/README.md"
 
 for f in "$T/AGENTS.md" "$T/CLAUDE.md"; do
-  grep -qi 'explicit opt-in' "$f" && ok "$f says explicit opt-in" || bad "$f missing explicit opt-in"
-  grep -qi 'do not self-upgrade casual requests' "$f" && ok "$f forbids self-upgrade" || bad "$f missing self-upgrade rule"
+  grep -qi 'opt-in' "$f" && ok "$f says explicit opt-in" || bad "$f missing explicit opt-in"
+  grep -q '不得把普通请求擅自升级' "$f" && ok "$f forbids self-upgrade" || bad "$f missing self-upgrade rule"
+  grep -q '快速判定' "$f" && ok "$f leads with opt-in fast-path" || bad "$f missing opt-in fast-path"
+  grep -q 'Master/Subagent' "$f" && ok "$f exposes run-loop" || bad "$f missing run-loop exposure"
+  grep -q 'judge apply' "$f" && ok "$f routes verdicts via judge" || bad "$f missing judge path"
   grep -q 'failure means incomplete' "$f" && ok "$f has criteria failure test" || bad "$f missing criteria failure test"
   grep -q 'observable result' "$f" && ok "$f has criteria observable result" || bad "$f missing criteria observable result"
   grep -q 'evidence path' "$f" && ok "$f has criteria evidence path" || bad "$f missing criteria evidence path"
@@ -34,7 +37,7 @@ grep -q 'reopen-impact.yaml' "$R" && ok "README documents reopen-impact.yaml" ||
 grep -q 'Delivery modes' "$R" && ok "README documents delivery modes" || bad "README missing delivery modes"
 grep -q 'delivery.mode' "$R" && ok "README documents delivery.mode" || bad "README missing delivery.mode"
 for f in "$T/AGENTS.md" "$T/CLAUDE.md"; do
-  grep -q 'configured delivery mode' "$f" && ok "$f mentions configured delivery mode" || bad "$f missing configured delivery mode"
+  grep -q 'delivery mode' "$f" && ok "$f mentions configured delivery mode" || bad "$f missing configured delivery mode"
 done
 
 [ "$TESTS_FAIL" -eq 0 ]

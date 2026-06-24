@@ -58,17 +58,53 @@ goalspec_now() {
   date -u +%Y-%m-%dT%H:%M:%SZ
 }
 
-# Generate goal id like GOAL-YYYYMMDD-001
+# Generate a fresh goal id like GOAL-YYYYMMDD-NNN. Always produces a NEW id:
+# the sequence counts prior versions in project/versions.yaml sharing today's
+# date, so a goal opened from `closed` on the same day as the previous close
+# increments, and a new day starts at 001. It must never reuse the stale
+# active_goal_id that close leaves behind in state.yaml — that made every
+# change share one id and made versions.yaml ambiguous.
 goalspec_new_goal_id() {
-  local date part
+  local date prefix versions max gid n
   date="$(date -u +%Y%m%d)"
-  part="$(goalspec_yaml_get "$(goalspec_active_dir)/state.yaml" '.active_goal_id' || echo "")"
-  # yq returns the literal "null" for an unset scalar; treat that as no id.
-  if [ -z "$part" ] || [ "$part" = "null" ]; then
-    echo "GOAL-${date}-001"
-  else
-    echo "$part"
+  prefix="GOAL-${date}-"
+  versions="$GOALSPEC_ROOT/project/versions.yaml"
+  max=0
+  if [ -f "$versions" ]; then
+    while IFS= read -r gid; do
+      case "$gid" in
+        "${prefix}"*)
+          n="${gid#"${prefix}"}"
+          case "$n" in
+            ''|*[!0-9]*) ;;
+            *) if [ "$n" -gt "$max" ]; then max="$n"; fi ;;
+          esac
+          ;;
+      esac
+    done <<EOF
+$(yq e '.versions[].goal_id' "$versions" 2>/dev/null)
+EOF
   fi
+  printf 'GOAL-%s-%03d\n' "$date" "$((max+1))"
+}
+
+# Reset the active workspace to clean templates for a brand-new goal. Wipes
+# EVERY prior-change artifact under active/ (contract/criteria/evidence/verdict/
+# reviews/etc., not just the intake files), re-seeds from templates, and stamps
+# the freshly-minted goal id. Shared by `start` (ensure_active_goal) and
+# `new-goal` so the two entry points can never diverge on what a fresh active/
+# looks like — and so a prior, already-closed change's frozen contract cannot
+# leak into the next change (compile reuses contract.yaml only when absent).
+goalspec_reset_active_workspace() {
+  local active="$GOALSPEC_ROOT/active" tpl="$GOALSPEC_ROOT/runtime/templates/active" gid
+  find "$active" -mindepth 1 -type f -delete 2>/dev/null || true
+  cp "$tpl"/* "$active"/
+  gid="$(goalspec_new_goal_id)"
+  yq e -i ".active_goal_id = \"$gid\"" "$active/state.yaml"
+  yq e -i ".status = \"spec_drafting\"" "$active/state.yaml"
+  yq e -i ".git.base_revision = \"$(goalspec_git_head)\"" "$active/state.yaml"
+  yq e -i ".git.current_revision = \"$(goalspec_git_head)\"" "$active/state.yaml"
+  yq e -i ".goal_hash = \"$(goalspec_goal_hash)\"" "$active/state.yaml"
 }
 
 # Append a yaml document map to a list file under a key. Usage: append_list file key yamlblock

@@ -62,6 +62,10 @@ After intake ends, write both and show a concise review summary (Goal summary, s
 
 Use `references/constraint-extraction.md` for extraction rules. Show both files to the human and wait for explicit confirmation or corrections before approving/applying. Never write `.goalspec/project/**` before the package is approved and applied.
 
+## Criteria Drafting
+
+When compiling the contract (`goalspec compile`), draft Criteria using `references/criteria-writing.md`. It is a five-step authoring procedure whose main thread is product-perspective coverage: every goal branch in `goal.md` (Intent, Narratives, every Success Model field, Scope, Risk Scan) must trace to at least one Criterion, each `must_not_happen` becomes a negative Criterion, and the `final_completion_signal` becomes the single `final: true` Criterion. The procedure then applies an engineering-validity lens, a testing-coverage lens, and a verifiability / loop-safety lens so every Criterion is decidable into a clear pass/fail and the run-loop can converge rather than stall.
+
 ## Reopen Policy
 
 `/goalspec reopen <reason>` is for frozen Goal / Criteria / Constraints problems, not ordinary unfinished implementation.

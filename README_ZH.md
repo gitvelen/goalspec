@@ -68,6 +68,7 @@ git init                  # 如果项目还不是 git 仓库
 /goalspec close
 /goalspec status
 /goalspec reopen <reason>
+/goalspec scope amend --allow <glob> --reason <text>
 ```
 
 `/goalspec run` 是唯一的实施入口。`/goalspec close` 是唯一的收口入口。
@@ -328,6 +329,7 @@ AI 工具只能把它们当作人类显式 `/goalspec ...` 命令的直接翻译
 - 没有未解决的 blocking questions；
 - `Goal-Driven Prompt` 存在；
 - frozen artifact hashes 与 prompt hash 都是当前的；
+- effective scope hash 与 `state.yaml.scope_hash` 一致（没有未批准的路径扩展；见 [Scope amendments（范围修订）](#scope-amendments范围修订)）；
 - 当前状态不是 `reopen_required`。
 
 允许执行时的典型输出：
@@ -530,6 +532,34 @@ Goalspec 记录完成情况的单位，是 `Criteria / evidence / verdict`，不
 
 如果新要求会改变“当前 Goal 何时算完成”，则应 reopen 当前变更，而不是开新一轮。
 
+## Scope amendments（范围修订）
+
+Scope 是 Constraints 的投影：`contract.yaml` 中的 `allowed_paths` 与 `forbidden_paths`。每一个被改动的业务文件都必须匹配某个 allowed 模式、且不匹配任何 forbidden 模式，否则 `/goalspec run` 的 close-readiness 与 `scope-check` 会拒绝。Scope 的 hash 会记入 `state.yaml.scope_hash`，因此任何未批准的路径扩展都会让 `run` 与 close-readiness 像其它 frozen 工件一样变 stale。
+
+当实施确实需要触碰一些**仍然服务于当前 Goal、但不改变 Goal、Criteria 或语义 Constraints** 的路径时，记录一次人工批准的扩展，而不是 reopen：
+
+```text
+.goalspec/goalspec scope amend --allow <glob> [--allow <glob> ...] --reason <why>
+```
+
+这是 Constraints 投影通道；`/goalspec reopen` 是契约通道。这个区分是有意的：`scope amend` 只向 `.goalspec/active/scope-amendments.yaml` 追加一条 `approved` 修订，绝不覆盖 `contract.yaml`；而 `reopen` 会把冻结的 contract 降回 `draft`，并强制 re-review / re-approve / re-freeze。因此 `scope amend` 会：
+
+- 要求 `--reason` 和至少一个 `--allow` glob；
+- 拒绝任何会授权同时被 `forbidden_paths` 命中路径的 glob；
+- 记录新旧 `scope_hash`（修订条目和 `state.yaml` 各一份）；
+- 若 `.goalspec/active/goal-driven-prompt.md` 已存在则重新生成它（prompt 内嵌有效 scope，因此 `prompt_hash` 也会变）；
+- 若变更已进入 `ready_to_close` 或 `closing`，则回滚到 `running` 并清空 `close_package_hash`，使下一次 `/goalspec run` 重新生成 close package。
+
+只有 Goal、Criteria 或语义 Constraints 本身改变时才用 `reopen`；当 Goal 与 contract 仍然正确、只是 allowed-path 表太窄时，用 `scope amend`。
+
+随时查看有效表：
+
+```text
+.goalspec/goalspec scope effective
+```
+
+它会打印 `allowed_paths`（contract 模式加上已批准的修订）、`forbidden_paths`，以及当前的 `scope_hash`。
+
 ## Close
 
 `/goalspec close` 是唯一面向用户的收口命令。它确认当前 close package，并授权执行配置好的交付模式：
@@ -623,4 +653,4 @@ Goalspec **不会**把内部任务清单、work units 或实现步骤当作“�
 .goalspec/goalspec status
 ```
 
-它会报告 `STATE`、`GOAL`、`FROZEN`、`PROMPT_READY`、`RUN_ALLOWED`、`CLOSE_READY`、`NEEDS_HUMAN_CONFIRMATION`、`BLOCKERS`、`UNMET_CRITERIA` 和 `NEXT_USER_ACTION`。契约冻结后还会追加 `LOOP_CONTRACT:` 视图（见[循环工程可观测性](#循环工程可观测性loop-engineering-observability)）。
+它会报告 `STATE`、`GOAL`、`FROZEN`、`PROMPT_READY`、`RUN_ALLOWED`、`CLOSE_READY`、`NEEDS_HUMAN_CONFIRMATION`、`BLOCKERS`、`CLOSE_BLOCKERS`、`UNMET_CRITERIA`、`SCOPE_HASH` 和 `NEXT_USER_ACTION`。契约冻结后还会追加 `LOOP_CONTRACT:` 视图（见[循环工程可观测性](#循环工程可观测性loop-engineering-observability)）。

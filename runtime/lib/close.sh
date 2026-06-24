@@ -113,7 +113,6 @@ goalspec_close_readiness_blockers() {
   [ "$(yq e '.status // ""' "$cf")" = "frozen" ] || blockers="${blockers}contract_not_frozen "
   [ "$(yq e '.contract_hash // ""' "$state_file")" = "$(goalspec_contract_hash)" ] || blockers="${blockers}contract_stale "
   [ "$(yq e '.goal_hash // ""' "$state_file")" = "$(goalspec_goal_hash)" ] || blockers="${blockers}goal_stale "
-  [ "$(yq e '.goal_artifact_hash // ""' "$state_file")" = "$(goalspec_goal_artifact_hash)" ] || blockers="${blockers}goal_artifact_stale "
   [ "$(yq e '.criteria_hash // ""' "$state_file")" = "$(goalspec_criteria_hash)" ] || blockers="${blockers}criteria_stale "
   [ "$(yq e '.constraints_hash // ""' "$state_file")" = "$(goalspec_constraints_hash)" ] || blockers="${blockers}constraints_stale "
   goalspec_scope_ensure_state_hash || blockers="${blockers}scope_stale "
@@ -359,7 +358,6 @@ goalspec_close_completion_gate() {
   [ "$(yq e '.status // ""' "$cf")" = "frozen" ] || { echo "contract not frozen"; return 1; }
   [ "$(yq e '.contract_hash // ""' "$state_file")" = "$(goalspec_contract_hash)" ] || { echo "contract changed since freeze; re-freeze"; return 1; }
   [ "$(yq e '.goal_hash // ""' "$state_file")" = "$(goalspec_goal_hash)" ] || { echo "goal changed since freeze; re-freeze"; return 1; }
-  [ "$(yq e '.goal_artifact_hash // ""' "$state_file")" = "$(goalspec_goal_artifact_hash)" ] || { echo "goal artifact changed since freeze; re-freeze"; return 1; }
   [ "$(yq e '.criteria_hash // ""' "$state_file")" = "$(goalspec_criteria_hash)" ] || { echo "criteria changed since freeze; re-freeze"; return 1; }
   [ "$(yq e '.constraints_hash // ""' "$state_file")" = "$(goalspec_constraints_hash)" ] || { echo "constraints changed since freeze; re-freeze"; return 1; }
   goalspec_scope_ensure_state_hash || { echo "effective scope changed since last approval; run goalspec scope amend with a reason"; return 1; }
@@ -417,7 +415,7 @@ goalspec_close_next_history_version() {
 goalspec_close_archive_active() {
   local vname="$1" hdir="$GOALSPEC_ROOT/history/$vname" f
   mkdir -p "$hdir"
-  for f in goal.md goal.yaml criteria.yaml constraints.yaml contract.yaml goal-driven-prompt.md evidence.yaml verdict.yaml trace.yaml regressions.yaml memory-patch.yaml questions.yaml reviews.yaml state.yaml close-package.yaml close-package.md reopen-impact.yaml harness-improvement-candidate.yaml scope-amendments.yaml; do
+  for f in goal.md contract.yaml goal-driven-prompt.md evidence.yaml verdict.yaml trace.yaml regressions.yaml memory-patch.yaml questions.yaml reviews.yaml state.yaml close-package.yaml close-package.md reopen-impact.yaml harness-improvement-candidate.yaml scope-amendments.yaml; do
     [ -f "$GOALSPEC_ROOT/active/$f" ] && cp "$GOALSPEC_ROOT/active/$f" "$hdir/$f"
   done
 }

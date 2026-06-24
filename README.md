@@ -67,6 +67,7 @@ Use only these user-facing commands:
 /goalspec close
 /goalspec status
 /goalspec reopen <reason>
+/goalspec scope amend --allow <glob> --reason <text>
 ```
 
 `/goalspec run` is the only implementation entry. `/goalspec close` is the only closure entry.
@@ -327,6 +328,7 @@ There is also a review obligation between `/goalspec end` and `freeze`: AI must 
 - No blocking questions remain.
 - The Goal-Driven Prompt exists.
 - Frozen artifact hashes and prompt hash are current.
+- The effective scope hash matches `state.yaml.scope_hash` (no unapproved path expansion; see [Scope amendments](#scope-amendments)).
 - The state is not `reopen_required`.
 
 Allowed run output:
@@ -515,6 +517,34 @@ If the new request changes what counts as complete for the current Goal, reopen 
 
 If it is an extra improvement that does not affect current completion, close the current change first and start a new `/goalspec start <intent>`.
 
+## Scope amendments
+
+Scope is the Constraints projection: `allowed_paths` and `forbidden_paths` in `contract.yaml`. Every changed business file must match an allowed pattern and match no forbidden pattern, or `/goalspec run` close-readiness and `scope-check` refuse. Scope is hashed into `state.yaml.scope_hash`, so an unapproved path expansion makes `run` and `close-readiness` stale just like any other frozen artifact.
+
+When implementation legitimately needs to touch paths that still serve the current Goal **without changing Goal, Criteria, or semantic Constraints**, record a human-approved expansion instead of reopening:
+
+```text
+.goalspec/goalspec scope amend --allow <glob> [--allow <glob> ...] --reason <why>
+```
+
+This is the Constraints-projection lane; `/goalspec reopen` is the contract lane. The split is deliberate: `scope amend` appends an `approved` amendment to `.goalspec/active/scope-amendments.yaml` and never overwrites `contract.yaml`, while `reopen` demotes the frozen contract back to `draft` and forces re-review / re-approve / re-freeze. `scope amend` therefore:
+
+- requires `--reason` and at least one `--allow` glob;
+- refuses any glob that would authorize a path also matched by `forbidden_paths`;
+- records old/new `scope_hash` (in both the amendment and `state.yaml`);
+- regenerates `.goalspec/active/goal-driven-prompt.md` if it exists (the prompt embeds the effective scope, so `prompt_hash` moves too);
+- if the change already reached `ready_to_close` or `closing`, rolls back to `running` and clears `close_package_hash`, so the next `/goalspec run` regenerates the close package.
+
+Use `reopen` only when Goal, Criteria, or semantic Constraints themselves changed; use `scope amend` when the Goal and contract are still correct and only the allowed-path table is too narrow.
+
+Inspect the effective table at any time:
+
+```text
+.goalspec/goalspec scope effective
+```
+
+It prints `allowed_paths` (contract patterns plus approved amendments), `forbidden_paths`, and the current `scope_hash`.
+
 ## Close
 
 `/goalspec close` is the only user-visible closure command. It confirms the current close package and authorizes the configured delivery mode:
@@ -608,4 +638,4 @@ Run status whenever unsure:
 .goalspec/goalspec status
 ```
 
-It reports `STATE`, `GOAL`, `FROZEN`, `PROMPT_READY`, `RUN_ALLOWED`, `CLOSE_READY`, `NEEDS_HUMAN_CONFIRMATION`, `BLOCKERS`, `UNMET_CRITERIA`, and `NEXT_USER_ACTION`. When the contract is frozen it also appends a `LOOP_CONTRACT:` view (see [Loop engineering observability](#loop-engineering-observability)).
+It reports `STATE`, `GOAL`, `FROZEN`, `PROMPT_READY`, `RUN_ALLOWED`, `CLOSE_READY`, `NEEDS_HUMAN_CONFIRMATION`, `BLOCKERS`, `CLOSE_BLOCKERS`, `UNMET_CRITERIA`, `SCOPE_HASH`, and `NEXT_USER_ACTION`. When the contract is frozen it also appends a `LOOP_CONTRACT:` view (see [Loop engineering observability](#loop-engineering-observability)).
