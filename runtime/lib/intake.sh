@@ -131,14 +131,18 @@ goalspec_intake_add_source() {
 
 goalspec_intake_record_conversation_source() {
   goalspec_intake_sources_init
-  local f tmp
+  local f tmp tpath hash=""
   f="$(goalspec_intake_sources_file)"
   if [ "$(yq e '[.sources[] | select(.type == "conversation")] | length' "$f" 2>/dev/null || echo 0)" -gt 0 ]; then
     return 0
   fi
+  # Record the real on-disk transcript path when one can be located, so the
+  # conversation source is traceable instead of a placeholder string.
+  tpath="$(goalspec_transcript_current_path 2>/dev/null || true)"
+  [ -n "$tpath" ] && [ -f "$tpath" ] && hash="$(goalspec_hash_file "$tpath")"
   tmp="$(mktemp)"
   yq -o=y --null-input \
-    ".type = \"conversation\" | .path = \"current AI session\" | .snapshot_path = \"active/intake-conversation.md\" | .hash = \"\" | .captured_at = \"$(goalspec_now)\"" > "$tmp"
+    ".type = \"conversation\" | .path = \"${tpath:-current AI session}\" | .snapshot_path = \"active/intake-conversation.md\" | .hash = \"$hash\" | .captured_at = \"$(goalspec_now)\"" > "$tmp"
   yq e -i ".sources += load(\"$tmp\")" "$f"
   /bin/rm -f "$tmp"
 }

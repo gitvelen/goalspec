@@ -24,7 +24,6 @@ case "$sub" in
     cat > "$conv" <<EOF
 # Intake Conversation
 
-status: collecting
 started_at: $(goalspec_now)
 
 ## Turn 1 - User
@@ -56,13 +55,23 @@ EOF
     cur="$(yq e '.intake_session.status // "not_started"' "$state_file")"
     [ "$cur" = "collecting" ] || { echo "goalspec intake end: intake is not collecting (status=$cur)" >&2; exit 1; }
     conv="$GOALSPEC_ROOT/active/intake-conversation.md"
-    {
-      printf '\nended_at: %s\n' "$(goalspec_now)"
-      printf '\n## Capture Instruction\n'
-      printf 'Generate active/intake-capture.md and active/constraint-suggestions.yaml from this conversation and any intake sources, then ask the human to confirm the intake package before writing final goal.md or project constraints.\n'
-    } >> "$conv"
+    started_at="$(yq e '.intake_session.started_at // ""' "$state_file")"
+    ended_at="$(goalspec_now)"
+    # Mechanically rebuild the conversation log from the AI session transcript.
+    # On failure, fall back to appending the boundary + Capture Instruction to
+    # the begin skeleton so end is never blocked by a transcript problem.
+    if [ -n "$started_at" ] && goalspec_transcript_rebuild "$started_at" "$ended_at"; then
+      : # rebuild rewrote conversation.md with the full sliced window
+    else
+      {
+        printf '\nended_at: %s\n' "$ended_at"
+        printf '\n## Capture Instruction\n'
+        printf 'Generate active/intake-capture.md and active/constraint-suggestions.yaml from this conversation and any intake sources, then ask the human to confirm the intake package before writing final goal.md or project constraints.\n'
+      } >> "$conv"
+      echo "goalspec intake end: warning - conversation not rebuilt from transcript; active/intake-conversation.md retains the begin skeleton." >&2
+    fi
     yq e -i ".intake_session.status = \"closed\"" "$state_file"
-    yq e -i ".intake_session.ended_at = \"$(goalspec_now)\"" "$state_file"
+    yq e -i ".intake_session.ended_at = \"${ended_at}\"" "$state_file"
     goalspec_state_set_status spec_drafting
     echo "intake collection closed"
     echo "DRAFT_FOR_HUMAN_REVIEW_REQUIRED:"

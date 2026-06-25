@@ -45,7 +45,7 @@ Goalspec 受管工作前，运行或读取：
 
 ## Intake 与 Freeze
 
-intake 期间：记录会话；只问 Goal/Criteria/Constraints/scope/risk/用户可见行为相关问题；添加已批准 source。不得冻结工件、生成 Goal-Driven Prompt、修改业务代码、或自行判定 intake 已结束。
+intake 期间：专注澄清（只问 Goal/Criteria/Constraints/scope/risk/用户可见行为相关问题）、添加已批准 source；不要手动记录会话——`active/intake-conversation.md` 由 `goalspec intake end` 从 session transcript 自动切片生成。不得冻结工件、生成 Goal-Driven Prompt、修改业务代码、或自行判定 intake 已结束。
 
 `/goalspec end` 后：从 `.goalspec/active/intake-conversation.md`、`.goalspec/active/intake-sources.yaml`、已批准 source 快照、`.goalspec/active/intake-capture.md`、`.goalspec/active/constraint-suggestions.yaml` 生成并展示精简 review package（七项明细见 `.goalspec/ai/intake.md`），等阶段化确认。
 

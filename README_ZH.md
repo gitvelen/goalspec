@@ -204,7 +204,7 @@ any state -------> blocked --------resolve blocker---------------------> lifecyc
 - 工作：采集意图和已批准的 source 材料。
 - 目的：在冻结任何内容前，先把“要解决什么问题”采清楚。
 - 人类：持续澄清意图、按需加入 source，最后结束 intake。
-- AI：记录对话和 source，但不写业务代码，也不冻结工件。
+- AI：采集 source，但不写业务代码，也不冻结工件；对话由 `/goalspec end` 时从 session transcript 自动切片记录，无需手动记录。
 - 允许命令：`/goalspec source <path>`、`/goalspec end`。
 - 退出条件：显式 `/goalspec end`。
 - 禁止：compile、freeze、run、close、业务代码修改。
