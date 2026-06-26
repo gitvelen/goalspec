@@ -2,6 +2,10 @@ status: draft
 goal_hash: null
 project_memory_hash: null
 contract_hash: null
+# Criterion fields: id (required), kind (machine|judgment, optional, default machine),
+# statement (required, observable, no implementation steps), evidence_requirement_refs (required),
+# final (optional; exactly one criterion should carry final: true), workunit (optional — maps the
+# criterion to a goal.md `### Workunit:` grouping for traceability only; does NOT influence execution order).
 criteria: []
 evidence_requirements: []
 constraints: []

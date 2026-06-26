@@ -59,6 +59,42 @@ Use these fields for goal constraints:
     - docs/spec.md
 ```
 
+## Verifiability
+
+A `level: hard` constraint is enforced at acceptance: the Master judges the related criterion `fail` if the implementation violates it. So a hard constraint's `statement` MUST be **observable and checkable against evidence** — otherwise the Master cannot judge conformance and it is effectively advisory.
+
+- Write what can be checked (a forbidden dependency, a required behavior, an invariant), not a vague aspiration.
+- Prefer a statement that names an observable: a file/package, an API shape, a runtime invariant, a log absence.
+
+**Bad — not checkable, the Master cannot enforce it:**
+
+```yaml
+- id: quality-clean
+  level: hard
+  statement: Code should be clean and well-architected.
+```
+
+**Good — observable, the Master can check it from evidence:**
+
+```yaml
+- id: no-new-runtime-deps
+  level: hard
+  statement: No new third-party runtime dependency may be added to src/ beyond the current lockfile.
+- id: schema-no-breaking-change
+  level: hard
+  statement: No existing migration may be altered or dropped; new migrations are append-only.
+```
+
+If a constraint cannot be made observable, either mark it `level: soft` (advisory only) or move it to `open_questions[]` and ask the human.
+
+## Risk Scan coverage
+
+Constraints and the goal.md `Risk Scan` share the same six dimensions. Ensure each is at least evaluated when extracting constraints; do not silently skip one:
+
+- `scope-boundary`, `actor-permission`, `data-lifecycle`, `failure-degradation`, `non-functional-baseline`, `integration-boundary`
+
+Every Risk Scan conclusion in goal.md must resolve to a constraint, a criterion, or an explicit skip with a reason in `open_questions[]` — no floating conclusions.
+
 ## Ask Before Proceeding
 
 Stop and ask when:
