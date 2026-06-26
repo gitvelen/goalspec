@@ -224,6 +224,29 @@ goalspec_scope_check_run() {
   local unattributed=""
   local forbidden_hits=""
   local f
+
+  # Authority integrity check (git-independent). When .goalspec/ is gitignored,
+  # `git diff`/`ls-files --others` cannot see edits to active/ authority files,
+  # so the per-file git-diff branch below never fires for them. The frozen
+  # baseline hashes recorded in state.yaml at freeze time are the only tamper
+  # signal left. Any drift means a frozen authority file was edited outside the
+  # sanctioned freeze/reopen flow — treat it as a forbidden modification.
+  if [ "$contract_status" = "frozen" ]; then
+    local sf="$GOALSPEC_ROOT/active/state.yaml" field rec cur
+    for field in contract_hash criteria_hash constraints_hash goal_hash; do
+      rec="$(yq e ".$field // \"\"" "$sf" 2>/dev/null || echo "")"
+      [ -n "$rec" ] && [ "$rec" != "null" ] || continue
+      case "$field" in
+        contract_hash)    cur="$(goalspec_contract_hash)" ;;
+        criteria_hash)    cur="$(goalspec_criteria_hash)" ;;
+        constraints_hash) cur="$(goalspec_constraints_hash)" ;;
+        goal_hash)        cur="$(goalspec_goal_hash)" ;;
+      esac
+      if [ "$rec" != "$cur" ]; then
+        forbidden_hits="${forbidden_hits}frozen_${field}_drift "
+      fi
+    done
+  fi
   while IFS= read -r f; do
     [ -z "$f" ] && continue
     # Frozen contract authority file. freeze writes contract_hash into

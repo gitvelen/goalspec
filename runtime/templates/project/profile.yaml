@@ -16,6 +16,32 @@ environment:
   required_services: []
   required_env_vars: []
   local_setup_notes: []
+  # Smoke gate (opt-in). A small number of end-to-end tests that physically
+  # traverse invariants OUTSIDE the implementer's control — a real DB engine's
+  # constraints (postgres NOT NULL/UNIQUE, not sqlite create_all), a real
+  # service process's middleware, real I/O. A passing smoke test cannot be
+  # faked by a test helper or a sqlite fixture. Velentrade postmortem: 4
+  # shipped bugs were all surfaced by a single real owner-login e2e that close
+  # never ran. Configure the core user journey(s) only — this is "locally hard"
+  # over "globally soft" (a soft full-coverage gate equals zero).
+  smoke_tests: []
+  # smoke_tests:
+  #   - command: "scripts/smoke-owner-login.sh"   # real HTTP login, asserts 200
+  #     fidelity: integration                      # binds to boundaries.integration
+  # Fidelity bindings (opt-in). When enabled, close re-runs each smoke test
+  # under its boundary (bootstrap → command → teardown). enforce_on_close makes
+  # a failing smoke test fail close; otherwise it warns. With no smoke_tests
+  # configured, close emits SMOKE_WARNING + RALPH_WIGGUM_WARNING (the all-soft
+  # close) but still succeeds — backward compatible.
+  fidelity:
+    enabled: false
+    enforce_on_close: false
+    boundaries:
+      integration:
+        bootstrap: ""        # e.g. "docker compose up -d postgres && alembic upgrade head"
+        env: {}              # e.g. {DATABASE_URL: "postgresql://user@host/db"}
+        teardown: ""         # e.g. "docker compose down -v"
+        fingerprint: {}      # advisory {db_dialect: postgresql, schema_source: migration}
 tools: []
 # /goalspec close delivery mode — pick by team workflow (see README "Delivery modes"):
 #   github_pr    — commit + push + open a PR (default; full automation)

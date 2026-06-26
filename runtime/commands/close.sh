@@ -5,6 +5,8 @@ set -uo pipefail
 
 state_file="$GOALSPEC_ROOT/active/state.yaml"
 cpf="$GOALSPEC_ROOT/active/close-package.yaml"
+# Default delivery verification summary; updated by the smoke gate if it runs.
+smoke_summary="final verification passed"
 
 fail_close() {
   local msg="$1" cur
@@ -102,6 +104,18 @@ if [ "$gate_status" = "not_started" ] || [ "$gate_status" = "failed" ] || [ "$ga
     if ! verify_err="$(goalspec_delivery_run_final_verification 2>&1)"; then
       fail_close "final verification failed: $verify_err"
     fi
+    # Smoke gate + Ralph Wiggum audit (velentrade postmortem): surface the
+    # claimed-done-but-core-broken failure. Soft by default — warns on the
+    # all-soft close; blocks only when fidelity.enforce_on_close=true and a
+    # smoke command failed. The summary line is captured for delivery.yaml.
+    smoke_out="$(goalspec_fidelity_gate 2>&1)"; smoke_rc=$?
+    # Pass smoke warnings (SMOKE_WARNING / RALPH_WIGGUM_WARNING) through to the
+    # caller so the all-soft close is visible, not swallowed into a variable.
+    [ -n "$smoke_out" ] && printf '%s\n' "$smoke_out"
+    if [ "$smoke_rc" -ne 0 ]; then
+      fail_close "smoke gate failed: $smoke_out"
+    fi
+    [ -n "$smoke_out" ] && smoke_summary="$(printf '%s\n' "$smoke_out" | tail -1)"
     if ! changed_err="$(goalspec_close_recheck_changed_files_hash 2>&1)"; then
       fail_close "$changed_err"
     fi
@@ -152,13 +166,18 @@ if [ "$delivery_mode" != "archive_only" ]; then
   fi
 
   if [ -z "$main_commit" ] || [ "$main_commit" = "null" ]; then
+    # Stage business-file changes (delivery_stage_files skips gitignored
+    # .goalspec/). A goal may legitimately close with no business-file delta
+    # (a pure .goalspec management change), so allow an empty main commit
+    # rather than blocking close — the delivery branch still records the goal.
     goalspec_delivery_stage_files
-    if ! goalspec_delivery_has_staged_changes; then
-      fail_close "no staged changes for main commit"
-    fi
     msg_file="$(mktemp)"
     yq e '.commit.message // "chore(goalspec): close goal"' "$cpf" > "$msg_file"
-    git -C "$PROJECT_ROOT" commit -F "$msg_file" >/dev/null || { rm -f "$msg_file"; fail_close "main commit failed"; }
+    if goalspec_delivery_has_staged_changes; then
+      git -C "$PROJECT_ROOT" commit -F "$msg_file" >/dev/null || { rm -f "$msg_file"; fail_close "main commit failed"; }
+    else
+      git -C "$PROJECT_ROOT" commit --allow-empty -F "$msg_file" >/dev/null || { rm -f "$msg_file"; fail_close "main commit failed"; }
+    fi
     rm -f "$msg_file"
     main_commit="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
     yq e -i ".close.main_commit = \"$main_commit\"" "$state_file"
@@ -208,7 +227,7 @@ metadata_commit: ${prev_meta:-null}
 pr_url: ${pr_url:-null}
 closed_at: $closed_at
 close_package_hash: $(goalspec_close_package_hash)
-verification_summary: final verification passed
+verification_summary: "$smoke_summary"
 YML
 
 # Flip the top-level status to closed BEFORE the metadata commit so the commit
@@ -221,6 +240,7 @@ goalspec_state_set_status closed
 yq e -i '.run_loop.iteration = 0 | .run_loop.last_outcome = null | .run_loop.last_at = null | .run_loop.stall_count = 0 | .run_loop.last_fingerprint = null | .run_loop.last_evidence_hash = null | .run_loop.trajectory = {"tried_paths": [], "failed_approaches": [], "current_blocker": "", "next_step": ""}' "$state_file"
 
 if [ "$delivery_mode" = "archive_only" ]; then
+  goalspec_close_vacate_active
   cat <<EOF
 close: $vname
   status: closed
@@ -230,10 +250,12 @@ EOF
   exit 0
 fi
 
-git -C "$PROJECT_ROOT" add "$hdir/delivery.yaml" "$state_file" >/dev/null 2>&1 || fail_close "could not stage delivery metadata"
+# Delivery metadata (delivery.yaml, state.yaml) lives under the gitignored
+# .goalspec/, so it stays local — never git-add it. The metadata commit is an
+# empty marker on the delivery branch so close stays resumable and the goal is
+# recorded in branch history (V2 §8 rollback + #4 metadata SHA still hold).
 if [ -z "$prev_meta" ]; then
-  goalspec_delivery_has_staged_changes || fail_close "no staged changes for metadata commit"
-  git -C "$PROJECT_ROOT" commit -m "chore(goalspec): record delivery metadata for $(yq e '.active_goal_id' "$state_file")" >/dev/null || fail_close "metadata commit failed"
+  git -C "$PROJECT_ROOT" commit --allow-empty -m "chore(goalspec): record delivery metadata for $(yq e '.active_goal_id' "$state_file")" >/dev/null || fail_close "metadata commit failed"
   metadata_commit="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
   yq e -i ".close.metadata_commit = \"$metadata_commit\"" "$state_file"
 else
@@ -248,6 +270,10 @@ fi
 if [ "$delivery_mode" = "github_pr" ] || [ "$delivery_mode" = "push_only" ]; then
   git -C "$PROJECT_ROOT" push "$remote" "$branch" >/dev/null 2>&1 || fail_close "metadata push failed"
 fi
+
+# Vacate active/ only after every resumable delivery step has succeeded, so a
+# failed-and-resumed close still finds close-package.yaml and the frozen artifacts.
+goalspec_close_vacate_active
 
 cat <<EOF
 close: $vname
