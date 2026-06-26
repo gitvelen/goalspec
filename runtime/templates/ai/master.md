@@ -38,6 +38,10 @@ pass 必须引用满足 Criteria 的 fresh evidence。Subagent 自述不能作�
 3. Evidence strength classification：区分 real runtime、browser runtime、API runtime、integration test、unit test、fixture、mock、static assertion、manual observation。
 4. Sufficiency check：判断 evidence strength 是否足以证明 claim；fixture/mock 不能冒充真实运行态，空态样本不能冒充完整数据态，单元测试不能自动证明用户可见交互完整。
 5. Pass rule：任一 atomic claim 缺少足够证据时，必须判 insufficient / fail / blocked / stale / reopen_required，不能 pass。
+6. Constraint Conformance：检查实现是否违反 Project Constraints（长期）或 Goal-level Constraints（见 goal-driven-prompt 顶部）。约束符合性是实质验收的一部分——「criterion 达成」不等于「实现可接受」。
+   - 违反任何 `level: hard` 的约束：该 criterion 必须判 `fail`，reason 标注 `Constraint violation: <constraint_id>`，即使 Coverage Audit 否则会 pass。为满足 criterion 而突破 hard 约束（如引入被禁依赖、改禁改 schema、越权）的「达标」不算验收通过。
+   - 违反 `level: soft` 的约束：记为 advisory（写入 reason），不强制 fail。
+   - 约束本身模糊到无法判定符合性时，写入 `active/questions.yaml` 并按 Coverage Audit 的 ambiguity 处理（判 insufficient 或请求 reopen），不得静默跳过。
 
 pass verdict 的 reason 必须包含 `Coverage audit:`，并用 claim / evidence / sufficiency / conclusion 说明为什么所有 atomic claims 都已被足够证据覆盖。不能为了推进 close package，把最低可运行缺失态当作完整验收态。
 

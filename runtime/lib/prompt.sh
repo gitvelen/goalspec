@@ -32,6 +32,15 @@ goalspec_prompt_generate() {
   scope_hash="$(goalspec_scope_hash)"
   generated_at="$(yq e '.prompt_generated_at' "$sf")"
   confirmed_at="$(yq e '.confirmed_at' "$sf")"
+  # Long-term project constraints (constitution-like). Loaded into the prompt so
+  # the Master/Subagent loop reads and honors them during execution; without this
+  # they were invisible to the run-loop (constraints had no teeth).
+  local pcf="$GOALSPEC_ROOT/project/constraints.yaml" proj_constraints_block
+  if [ -f "$pcf" ]; then
+    proj_constraints_block="$(yq e '.constraints // []' "$pcf")"
+  else
+    proj_constraints_block="(none)"
+  fi
 
   cat > "$pf" <<EOF
 ---
@@ -66,7 +75,15 @@ $(yq e '.criteria // []' "$cf")
 $(yq e '.optional_criteria // []' "$cf")
 \`\`\`
 
-## Frozen Constraints
+## Project Constraints (long-term, all goals)
+
+These apply to EVERY goal in this project. Any implementation that violates a \`level: hard\` constraint here MUST be treated by the Master as not-yet-complete — emit a Constraint Conformance failure for the related criterion (see Master Verdict). \`level: soft\` constraints are advisory.
+
+\`\`\`yaml
+${proj_constraints_block}
+\`\`\`
+
+## Goal-level Constraints (this change)
 
 \`\`\`yaml
 $(yq e '.constraints // []' "$cf")
@@ -85,8 +102,8 @@ scope_hash: "$scope_hash"
 ## Control Rules
 
 The frozen Goal above is the final and only goal for the Primary Subagent and any Worker Subagents.
-Internal tasks, attempts, execution scopes, work units, test runs, and implementation steps are not success standards.
-Criteria satisfaction is the only success condition.
+Internal tasks, attempts, execution scopes, work units, test runs, and implementation steps are not success standards. The goal.md may group information under \`### Workunit:\` headings — these are readability and criteria-traceability groupings only; they are NOT execution units and do not sequence or prioritize implementation (the Master drives by criterion, not by workunit).
+Criteria satisfaction is the only success condition, and it requires BOTH an evidence-backed Coverage Audit pass AND Constraint Conformance (no violated \`level: hard\` Project or Goal-level constraint).
 Subagent cannot declare final success.
 The Master Agent must strictly evaluate progress against the frozen Criteria.
 The Master Agent produces final verdicts; the Primary Subagent and Worker Subagents may only produce evidence.
@@ -148,6 +165,7 @@ Repeat this cycle inside the current AI tool/session:
    - Perform Criteria Coverage Audit before any pass verdict: decompose the criterion statement into atomic claims, map each claim to evidence ids, classify evidence strength, and decide sufficiency.
    - Do not treat evidence requirement types, passing tests, fixtures, mocks, static assertions, missing-state samples, or Subagent self-reports as sufficient by themselves.
    - If any atomic claim lacks sufficient evidence, emit insufficient/fail/blocked/stale/reopen_required instead of pass.
+   - Perform Constraint Conformance alongside the Coverage Audit: check the implementation against Project Constraints (long-term) and Goal-level Constraints. If it violates any \`level: hard\` constraint, judge the criterion \`fail\` with reason including \`Constraint violation: <constraint_id>\` — even if the Coverage Audit would otherwise pass. \`level: soft\` violations are advisory (noted in reason, do not force fail). Meeting a criterion by breaking a hard constraint is NOT acceptance.
    - A pass verdict reason must include \`Coverage audit:\` with claim/evidence/sufficiency/conclusion details.
    - Apply verdicts through the normal Goalspec judge path so iteration, cap, and stalled accounting can occur.
 
