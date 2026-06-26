@@ -5,6 +5,8 @@ set -uo pipefail
 
 state_file="$GOALSPEC_ROOT/active/state.yaml"
 cpf="$GOALSPEC_ROOT/active/close-package.yaml"
+# Default delivery verification summary; updated by the smoke gate if it runs.
+smoke_summary="final verification passed"
 
 fail_close() {
   local msg="$1" cur
@@ -102,6 +104,18 @@ if [ "$gate_status" = "not_started" ] || [ "$gate_status" = "failed" ] || [ "$ga
     if ! verify_err="$(goalspec_delivery_run_final_verification 2>&1)"; then
       fail_close "final verification failed: $verify_err"
     fi
+    # Smoke gate + Ralph Wiggum audit (velentrade postmortem): surface the
+    # claimed-done-but-core-broken failure. Soft by default — warns on the
+    # all-soft close; blocks only when fidelity.enforce_on_close=true and a
+    # smoke command failed. The summary line is captured for delivery.yaml.
+    smoke_out="$(goalspec_fidelity_gate 2>&1)"; smoke_rc=$?
+    # Pass smoke warnings (SMOKE_WARNING / RALPH_WIGGUM_WARNING) through to the
+    # caller so the all-soft close is visible, not swallowed into a variable.
+    [ -n "$smoke_out" ] && printf '%s\n' "$smoke_out"
+    if [ "$smoke_rc" -ne 0 ]; then
+      fail_close "smoke gate failed: $smoke_out"
+    fi
+    [ -n "$smoke_out" ] && smoke_summary="$(printf '%s\n' "$smoke_out" | tail -1)"
     if ! changed_err="$(goalspec_close_recheck_changed_files_hash 2>&1)"; then
       fail_close "$changed_err"
     fi
@@ -213,7 +227,7 @@ metadata_commit: ${prev_meta:-null}
 pr_url: ${pr_url:-null}
 closed_at: $closed_at
 close_package_hash: $(goalspec_close_package_hash)
-verification_summary: final verification passed
+verification_summary: "$smoke_summary"
 YML
 
 # Flip the top-level status to closed BEFORE the metadata commit so the commit
