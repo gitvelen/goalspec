@@ -83,6 +83,42 @@ goalspec_install_ai_guide() {
   } >> "$dest_file"
 }
 
+# Ensure the project .gitignore excludes .goalspec/. The .goalspec/ workspace
+# holds both framework code and per-goal runtime state (active/); tracking it in
+# the business repo lets any `git checkout/restore/reset --hard` roll the whole
+# workspace — active/ included — back to an older committed snapshot, destroying
+# the current in-flight goal's state. gitignore is the framework-level guard so
+# the conventional `git add -A` after init can never pull .goalspec/ into git.
+goalspec_ensure_gitignore_entry() {
+  local dest_root="$1"
+  local gi="$dest_root/.gitignore"
+  local begin='# GOALSPEC:BEGIN'
+  local end='# GOALSPEC:END'
+  local entry='.goalspec/'
+
+  # Managed block present: refresh its contents in place (idempotent).
+  if [ -f "$gi" ] && /bin/grep -qF "$begin" "$gi" 2>/dev/null; then
+    local tmp
+    tmp="$(mktemp "${gi}.tmp.XXXXXX")" || return 1
+    awk -v begin="$begin" -v end="$end" -v entry="$entry" '
+      $0 == begin { print; print entry; in_block=1; next }
+      $0 == end { in_block=0; print; next }
+      !in_block { print }
+    ' "$gi" > "$tmp" && mv "$tmp" "$gi"
+    return 0
+  fi
+
+  # Unmanaged: if the project already ignores .goalspec/ on its own, leave it.
+  if [ -f "$gi" ] && /bin/grep -qxF "$entry" "$gi" 2>/dev/null; then
+    return 0
+  fi
+
+  {
+    [ -f "$gi" ] && printf '\n'
+    printf '%s\n' "$begin" "$entry" "$end"
+  } >> "$gi"
+}
+
 goalspec_update_existing() {
   local dest_root="$1" dest_goalspec="$2"
   local ans
@@ -142,6 +178,8 @@ goalspec_update_existing() {
   goalspec_install_ai_guide "$dest_root/AGENTS.md" "$SRC_ROOT/runtime/templates/AGENTS.md"
   goalspec_install_ai_guide "$dest_root/CLAUDE.md" "$SRC_ROOT/runtime/templates/CLAUDE.md"
 
+  goalspec_ensure_gitignore_entry "$dest_root"
+
   echo "goalspec: updated $dest_goalspec"
   echo "  project state preserved: active/, project/, history/, artifacts/"
   echo "next step: .goalspec/goalspec status"
@@ -188,6 +226,9 @@ chmod +x "$dest_goalspec/goalspec"
 # Install or update the managed Goalspec guide in project root AI instruction files.
 goalspec_install_ai_guide "$dest_root/AGENTS.md" "$SRC_ROOT/runtime/templates/AGENTS.md"
 goalspec_install_ai_guide "$dest_root/CLAUDE.md" "$SRC_ROOT/runtime/templates/CLAUDE.md"
+
+# Keep .goalspec/ out of the business repo (see goalspec_ensure_gitignore_entry).
+goalspec_ensure_gitignore_entry "$dest_root"
 
 # Initialize empty history / artifacts.
 mkdir -p "$dest_goalspec/history" "$dest_goalspec/artifacts"

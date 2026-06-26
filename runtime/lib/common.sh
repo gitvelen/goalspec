@@ -97,7 +97,8 @@ EOF
 # leak into the next change (compile reuses contract.yaml only when absent).
 goalspec_reset_active_workspace() {
   local active="$GOALSPEC_ROOT/active" tpl="$GOALSPEC_ROOT/runtime/templates/active" gid
-  find "$active" -mindepth 1 -type f -delete 2>/dev/null || true
+  mkdir -p "$active"
+  find "$active" -mindepth 1 -type f -delete || goalspec_die "reset_active_workspace: failed to clear active/ (permissions? read-only FS?); refusing to seed a fresh goal over a stale one"
   cp "$tpl"/* "$active"/
   gid="$(goalspec_new_goal_id)"
   yq e -i ".active_goal_id = \"$gid\"" "$active/state.yaml"

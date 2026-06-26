@@ -419,3 +419,18 @@ goalspec_close_archive_active() {
     [ -f "$GOALSPEC_ROOT/active/$f" ] && cp "$GOALSPEC_ROOT/active/$f" "$hdir/$f"
   done
 }
+
+# Vacate active/ after a successful close: delete every business artifact so the
+# just-closed goal's snapshot does not linger in active/. A lingering closed
+# snapshot is exactly what lets an external "restore/sync" resurrect a stale
+# goal over the next in-flight one (see the velentrade postmortem — gitignoring
+# .goalspec/ alone is insufficient if the old snapshot stays on disk to be
+# copied back). state.yaml stays as a tombstone (status=closed + active_goal_id
+# + close.*/git.*) so `status` and history linkage stay queryable until the next
+# start resets the workspace.
+goalspec_close_vacate_active() {
+  local active="$GOALSPEC_ROOT/active" f
+  for f in goal.md goal.yaml contract.yaml contract-review.yaml criteria.yaml constraints.yaml constraint-suggestions.yaml goal-driven-prompt.md evidence.yaml verdict.yaml trace.yaml regressions.yaml memory-patch.yaml questions.yaml reviews.yaml close-package.yaml close-package.md reopen-impact.yaml harness-improvement-candidate.yaml scope-amendments.yaml intake-capture.md intake-conversation.md intake-review.yaml intake-sources.yaml; do
+    [ -f "$active/$f" ] && /bin/rm -f "$active/$f"
+  done
+}

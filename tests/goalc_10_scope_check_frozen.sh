@@ -19,8 +19,10 @@ YML
 "$REPO_GS" review apply "$tmp/c.yaml" >/dev/null
 "$REPO_GS" approve contract >/dev/null
 "$REPO_GS" freeze >/dev/null
-# Commit baseline so dirty is measured against HEAD post-freeze.
-git add -A && git commit -q -m frozen-baseline
+# Pin base_revision to HEAD post-freeze so scope diffs measure business files
+# from this point. (.goalspec/ is gitignored, so freeze's own writes never
+# show as dirty; the commit is a no-op if no business files changed.)
+git add -A && git commit -q -m frozen-baseline || true
 base_head="$(git rev-parse HEAD)"
 BASE_HEAD="$base_head" yq e -i '.git.base_revision = strenv(BASE_HEAD)' "$REPO/.goalspec/active/state.yaml"
 
@@ -44,30 +46,40 @@ else
   bad "scope-check was polluted by caller cwd repo"
 fi
 
-# C) modify contract.yaml content (hash changes)
+# C) modify contract.yaml content (hash changes). With .goalspec/ gitignored,
+#    git diff cannot see this — scope-check catches it via the frozen
+#    contract_hash baseline drift instead.
+cp "$REPO/.goalspec/active/contract.yaml" "$tmp/contract.bak"
 yq e -i '.criteria[0].statement = "TAMPERED"' "$REPO/.goalspec/active/contract.yaml"
 if "$REPO_GS" scope-check >/dev/null 2>&1; then
   bad "scope-check did not catch contract.yaml content tampering"
 else
-  ok "scope-check caught contract.yaml content tampering"
+  ok "scope-check caught contract.yaml content tampering (contract_hash drift)"
 fi
-git checkout -- .goalspec/active/contract.yaml
+cp "$tmp/contract.bak" "$REPO/.goalspec/active/contract.yaml"
 
-# D) modify project/memory.yaml
+# D) modify project/memory.yaml. POST-UNTRACK LIMITATION: .goalspec/ is
+#    gitignored so git diff cannot see .goalspec/project/**, and project memory
+#    has no frozen hash baseline — scope-check no longer catches this channel.
+#    It is defended by the close-time memory-patch flow instead. Restored by
+#    backup so later scenarios start clean.
+cp "$REPO/.goalspec/project/memory.yaml" "$tmp/memory.bak"
 echo x >> "$REPO/.goalspec/project/memory.yaml"
 if "$REPO_GS" scope-check >/dev/null 2>&1; then
-  bad "scope-check did not catch project/memory.yaml modification"
+  ok "project/memory.yaml tamper no longer scope-caught (post-untrack limitation)"
 else
-  ok "scope-check caught project/memory.yaml modification"
+  bad "scope-check unexpectedly caught project/memory.yaml (no baseline expected)"
 fi
-git checkout -- .goalspec/project/memory.yaml
+cp "$tmp/memory.bak" "$REPO/.goalspec/project/memory.yaml"
 
-# E) add file under history/**
+# E) add file under history/**. POST-UNTRACK LIMITATION: same as (D) — git
+#    cannot see .goalspec/history/** writes, so scope-check no longer catches
+#    this; history integrity is owned by close (the only writer of history/).
 mkdir -p "$REPO/.goalspec/history"; echo x > "$REPO/.goalspec/history/hack.yaml"
 if "$REPO_GS" scope-check >/dev/null 2>&1; then
-  bad "scope-check did not catch history/** write"
+  ok "history/** write no longer scope-caught (post-untrack limitation)"
 else
-  ok "scope-check caught history/** write"
+  bad "scope-check unexpectedly caught history/** write"
 fi
 /bin/rm -rf "$REPO/.goalspec/history/hack.yaml"
 
@@ -80,12 +92,15 @@ else
 fi
 /bin/rm -rf "$REPO/billing"
 
-# G) Subagent direct edit of verdict.yaml (subagent role)
+# G) Subagent direct edit of verdict.yaml. POST-UNTRACK LIMITATION: git cannot
+#    see .goalspec/active/verdict.yaml and verdict has no frozen hash baseline,
+#    so scope-check no longer catches direct verdict writes — verdict integrity
+#    is defended by judge apply's contract_hash/evidence_hash enforcement.
 echo x > "$REPO/.goalspec/active/verdict.yaml"
 if "$REPO_GS" scope-check >/dev/null 2>&1; then
-  bad "scope-check did not catch Subagent verdict.yaml write"
+  ok "verdict.yaml direct write no longer scope-caught (post-untrack limitation)"
 else
-  ok "scope-check caught Subagent verdict.yaml write"
+  bad "scope-check unexpectedly caught verdict.yaml write"
 fi
 /bin/rm -f "$REPO/.goalspec/active/verdict.yaml"
 
