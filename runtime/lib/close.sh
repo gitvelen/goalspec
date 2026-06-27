@@ -279,7 +279,7 @@ YML
   pf="$GOALSPEC_ROOT/project/profile.yaml"
   if [ -f "$pf" ]; then
     vtmp="$(mktemp)"
-    yq e -o=yaml '[ ((.commands.test // []) + (.commands.build // []) + (.commands.lint // []) + (.commands.typecheck // []))[] | {"command": ., "exit_code": null, "summary": "runs during /goalspec close final verification"} ] | map(select(.command != null))' "$pf" > "$vtmp"
+    yq e -o=yaml '[ ((.commands.test // []) + (.commands.build // []) + (.commands.lint // []) + (.commands.typecheck // []) + (.commands.audit // []) + (.commands.sast // []))[] | {"command": ., "exit_code": null, "summary": "runs during /goalspec close final verification"} ] | map(select(.command != null))' "$pf" > "$vtmp"
     yq e -i ".verification.commands = load(\"$vtmp\")" "$cpf"
     /bin/rm -f "$vtmp"
   fi

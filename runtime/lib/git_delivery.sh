@@ -128,7 +128,7 @@ goalspec_delivery_run_final_verification() {
   local keys key n i cmd status vout
   [ -f "$pf" ] || return 0
   vout="$(mktemp)"
-  keys="test build lint typecheck"
+  keys="test build lint typecheck audit sast"
   for key in $keys; do
     n="$(yq e ".commands.$key | length" "$pf" 2>/dev/null || echo 0)"
     [ "${n:-0}" -gt 0 ] || continue

@@ -144,7 +144,7 @@ goalspec_loop_contract_render() {
   name="$(yq e '.active_goal_id // "unnamed"' "$sf")"
   goal="$(awk '/^## .*Intent/ { in_intent=1; next } /^## / && in_intent { exit } in_intent && NF { print; exit }' "$gf" 2>/dev/null || echo "")"
   scope="$(goalspec_scope_allowed_patterns | paste -sd, -)"
-  tools="$(yq e '(.commands.test // []) + (.commands.build // []) + (.commands.lint // []) + (.commands.typecheck // []) | join(", ")' "$pf" 2>/dev/null || echo "")"
+  tools="$(yq e '(.commands.test // []) + (.commands.build // []) + (.commands.lint // []) + (.commands.typecheck // []) + (.commands.audit // []) + (.commands.sast // []) | join(", ")' "$pf" 2>/dev/null || echo "")"
   max_iter="$(goalspec_delivery_profile_value '.run_loop.max_iterations' '8')"
   stall_thresh="$(goalspec_delivery_profile_value '.run_loop.stall_threshold' '3')"
   iter="$(yq e '.run_loop.iteration // 0' "$sf")"

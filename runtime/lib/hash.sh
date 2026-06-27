@@ -10,6 +10,27 @@ goalspec_hash_file() {
   echo "sha256:${h}"
 }
 
+# Hash a non-empty stripped string. Refuses to hash empty input — an empty
+# stripped value means yq failed to parse the source (corrupt/unreadable YAML),
+# and hashing empty content would yield the fixed sha256 e3b0c44... that looks
+# valid, letting a corrupt file pass staleness checks silently. This is the
+# mechanism behind the yq-quirk silent-failure incident (memory:
+# goalspec-yq-map-literal-quirk): a {key: .val} object literal that yq v4
+# rejects left the stripped content empty, the empty-content hash still matched
+# the recorded hash, and staleness checks passed while the real content was
+# gone. Fail loudly instead. Echoes sha256:<hash> on success; returns 1 on
+# empty input (stdout empty so callers comparing hashes see a mismatch).
+# args: <stripped_content> <name-for-error-message>
+goalspec_hash_stripped() {
+  local stripped="$1" name="$2" h
+  if [ -z "$stripped" ] || [ "$stripped" = "null" ]; then
+    echo "${name}: hash input empty (source missing/corrupt/unparseable) — refusing to hash empty content" >&2
+    return 1
+  fi
+  h="$(printf '%s' "$stripped" | sha256sum | awk '{print $1}')"
+  echo "sha256:${h}"
+}
+
 # Combined hash of multiple files (e.g. all of project memory). Order-sorted.
 goalspec_hash_files() {
   local out=""
@@ -46,9 +67,7 @@ goalspec_contract_hash() {
   # otherwise make every frozen contract appear stale vs its own stored hash.
   local stripped
   stripped="$(yq e 'del(.contract_hash) | del(.status)' "$cf")"
-  local h
-  h="$(printf '%s' "$stripped" | sha256sum | awk '{print $1}')"
-  echo "sha256:${h}"
+  goalspec_hash_stripped "$stripped" "contract_hash"
 }
 
 goalspec_scope_hash() {
@@ -80,13 +99,12 @@ goalspec_scope_hash() {
 goalspec_criteria_hash() {
   local cf="$GOALSPEC_ROOT/active/contract.yaml"
   [ -f "$cf" ] || { echo ""; return 1; }
-  local stripped h
+  local stripped
   stripped="$(
     yq e '.criteria // []' "$cf" 2>/dev/null
     yq e '.optional_criteria // []' "$cf" 2>/dev/null
   )"
-  h="$(printf '%s' "$stripped" | sha256sum | awk '{print $1}')"
-  echo "sha256:${h}"
+  goalspec_hash_stripped "$stripped" "criteria_hash"
 }
 
 # Hash of the constraints content (constraints + allowed_paths + forbidden_paths)
@@ -94,23 +112,21 @@ goalspec_criteria_hash() {
 goalspec_constraints_hash() {
   local cf="$GOALSPEC_ROOT/active/contract.yaml"
   [ -f "$cf" ] || { echo ""; return 1; }
-  local stripped h
+  local stripped
   stripped="$(
     yq e '.constraints // []' "$cf" 2>/dev/null
     yq e '.allowed_paths // []' "$cf" 2>/dev/null
     yq e '.forbidden_paths // []' "$cf" 2>/dev/null
   )"
-  h="$(printf '%s' "$stripped" | sha256sum | awk '{print $1}')"
-  echo "sha256:${h}"
+  goalspec_hash_stripped "$stripped" "constraints_hash"
 }
 
 goalspec_prompt_hash() {
   local pf="$GOALSPEC_ROOT/active/goal-driven-prompt.md"
   [ -f "$pf" ] || { echo ""; return 1; }
-  local stripped h
+  local stripped
   stripped="$(sed 's/^prompt_hash: .*/prompt_hash: null/' "$pf")"
-  h="$(printf '%s' "$stripped" | sha256sum | awk '{print $1}')"
-  echo "sha256:${h}"
+  goalspec_hash_stripped "$stripped" "prompt_hash"
 }
 
 goalspec_evidence_hash() {
@@ -168,17 +184,15 @@ goalspec_changed_files_hash() {
 goalspec_suggested_delivery_hash() {
   local cpf="$GOALSPEC_ROOT/active/close-package.yaml"
   [ -f "$cpf" ] || { echo ""; return 1; }
-  local stripped h
+  local stripped
   stripped="$(yq e '{"commit": .commit, "pr": .pr, "delivery": .delivery}' "$cpf")"
-  h="$(printf '%s' "$stripped" | sha256sum | awk '{print $1}')"
-  echo "sha256:${h}"
+  goalspec_hash_stripped "$stripped" "suggested_delivery_hash"
 }
 
 goalspec_close_package_hash() {
   local cpf="$GOALSPEC_ROOT/active/close-package.yaml"
   [ -f "$cpf" ] || { echo ""; return 1; }
-  local stripped h
+  local stripped
   stripped="$(yq e 'del(.hashes.close_package_hash)' "$cpf")"
-  h="$(printf '%s' "$stripped" | sha256sum | awk '{print $1}')"
-  echo "sha256:${h}"
+  goalspec_hash_stripped "$stripped" "close_package_hash"
 }

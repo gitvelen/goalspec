@@ -87,6 +87,22 @@ A `level: hard` constraint is enforced at acceptance: the Master judges the rela
 
 If a constraint cannot be made observable, either mark it `level: soft` (advisory only) or move it to `open_questions[]` and ask the human.
 
+## Reward hacking: lock the check itself (test-immutable boundary)
+
+If the run-loop's only goal is "make the test green," an agent may find the cheapest path to green is **breaking the test, not fixing the code** — delete an assert, mock everything, hardcode the expected value, wrap in try/except. This is reward hacking: the optimizer exploits a hole in the metric instead of solving the task. The defense is a second boundary the agent cannot cross: the test files themselves.
+
+The framework does **not** forbid `test/` by default — many changes legitimately touch tests (TDD writes the test first). Instead, when extracting constraints for a change where a test suite is the verifier, **declare that suite's directory as `forbidden_paths` in `contract.yaml`** so any edit to it is rejected by `scope-check`:
+
+```yaml
+# contract.yaml — forbid mutating the tests that verify THIS change
+forbidden_paths:
+  - tests/auth/**       # the suite that judges CRIT-LOGIN must not be weakened
+```
+
+This pairs with `reproducible: true` evidence (see `evidence-writing.md`): the sensor re-runs the suite to confirm green, and `forbidden_paths` guarantees the suite the sensor runs is the one that was frozen — not a version the agent quietly weakened.
+
+If a change genuinely must update tests (new coverage, correcting a wrong test), make the test change itself a separate, observable, reviewed criterion — never a silent side effect of making another criterion pass.
+
 ## Risk Scan coverage
 
 Constraints and the goal.md `Risk Scan` share the same six dimensions. Ensure each is at least evaluated when extracting constraints; do not silently skip one:
