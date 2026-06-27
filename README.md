@@ -550,9 +550,9 @@ It prints `allowed_paths` (contract patterns plus approved amendments), `forbidd
 `/goalspec close` is the only user-visible closure command. It confirms the current close package and authorizes the configured delivery mode:
 
 1. Validate the close package and recompute every bound hash (contract, evidence, verdict, memory-patch, changed-files, suggested delivery, close package).
-2. Run final verification (test/build/lint/typecheck, plus optional `audit`/`sast` security & dependency gates, from `.goalspec/project/profile.yaml`).
+2. Run final verification (test/build/lint/typecheck, plus optional `audit`/`sast` security & dependency gates, from `.goalspec/project/profile.yaml`). These must be sandbox-reproducible — a command needing a live DB/Redis/Browser/LLM fails close as if the code were broken; move such tests to `environment.smoke_tests` / `fidelity` / CI. On failure, close names the failing command and exit code, and (if the profile declares external services) flags a likely environment dependency.
 3. Re-check the changed-files hash after final verification, so verification cannot silently add files after package review.
-4. Scan for secrets, large files, and disallowed temp files.
+4. Scan for secrets, large files, and disallowed temp files. Password detection stays wide (quote and bare literals, to catch real `.env`-style leaks) but skips function-call assignments (`password=env.get(...)`); `.delivery.scan_allow_paths` exempts known dummy-credential paths (tests/fixtures/docs).
 5. Apply the memory patch to `.goalspec/project/**`.
 6. Archive active files to `.goalspec/history/vNNNN/` and update `project/versions.yaml`.
 7. Execute the configured delivery mode:

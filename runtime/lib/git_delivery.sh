@@ -104,16 +104,46 @@ goalspec_delivery_has_staged_changes() {
   ! git -C "$PROJECT_ROOT" diff --cached --quiet --exit-code
 }
 
+# Is path f covered by the project's scan_allow_paths glob list? Used to exempt
+# known false-positive paths (tests/fixtures/docs with dummy credentials).
+# args: <path> <newline-separated-patterns>
+goalspec_scan_path_allowed() {
+  local f="$1" patterns="$2" pat
+  [ -n "$patterns" ] || return 1
+  while IFS= read -r pat; do
+    [ -z "$pat" ] && continue
+    case "$f" in $pat) return 0 ;; esac
+  done <<<"$patterns"
+  return 1
+}
+
 goalspec_delivery_scan_secrets() {
-  local files f hits=""
+  local files f hits="" allow_patterns
   files="$(git -C "$PROJECT_ROOT" diff --cached --name-only; git -C "$PROJECT_ROOT" diff --name-only; git -C "$PROJECT_ROOT" ls-files --others --exclude-standard)"
+  allow_patterns="$(yq e '.delivery.scan_allow_paths // [] | .[]' "$GOALSPEC_ROOT/project/profile.yaml" 2>/dev/null || true)"
   while IFS= read -r f; do
     [ -z "$f" ] && continue
     [ -f "$PROJECT_ROOT/$f" ] || continue
     case "$f" in
       *.png|*.jpg|*.jpeg|*.gif|*.pdf|*.zip|*.gz|*.tgz|*.exe) continue ;;
     esac
-    if grep -Eiq '(-----BEGIN (RSA |DSA |EC |OPENSSH |PGP )?PRIVATE KEY-----|aws_secret_access_key|api[_-]?key[[:space:]]*[:=][[:space:]]*[A-Za-z0-9_./+=-]{20,}|token[[:space:]]*[:=][[:space:]]*[A-Za-z0-9_./+=-]{24,}|password[[:space:]]*[:=][[:space:]]*[^[:space:]]{12,})' "$PROJECT_ROOT/$f" 2>/dev/null; then
+    # Allowlist: skip paths the project declared as known false-positives.
+    goalspec_scan_path_allowed "$f" "$allow_patterns" && continue
+    # High-signal static patterns (PEM keys, aws/api/token literals) — rarely
+    # appear in safe code, matched as-is.
+    if grep -Eiq '(-----BEGIN (RSA |DSA |EC |OPENSSH |PGP )?PRIVATE KEY-----|aws_secret_access_key|api[_-]?key[[:space:]]*[:=][[:space:]]*[A-Za-z0-9_./+=-]{20,}|token[[:space:]]*[:=][[:space:]]*[A-Za-z0-9_./+=-]{24,})' "$PROJECT_ROOT/$f" 2>/dev/null; then
+      hits="${hits}${f} "
+    fi
+    # Password: keep a WIDE match (quote OR bare literal >=12 non-space chars) so
+    # real .env-style leaks are not missed, then drop function-call assignments
+    # (password=env.get(...), must_change_password=bool(...)) which read config,
+    # not credentials. Two-stage: candidate lines minus "value is identifier+("
+    # lines; if any remain, it is a credential-shaped literal. This is a shape
+    # heuristic — residual edges (e.g. `password: str = env.get()`) are covered
+    # by scan_allow_paths.
+    if grep -Ein 'password[[:space:]]*[:=][[:space:]]*[^[:space:]]{12,}' "$PROJECT_ROOT/$f" 2>/dev/null \
+      | grep -viE 'password[[:space:]]*[:=][[:space:]]*[A-Za-z0-9_.]+[[:space:]]*\(' 2>/dev/null \
+      | grep -qE .; then
       hits="${hits}${f} "
     fi
     if [ "$(wc -c < "$PROJECT_ROOT/$f")" -gt 5242880 ]; then
@@ -125,7 +155,7 @@ goalspec_delivery_scan_secrets() {
 
 goalspec_delivery_run_final_verification() {
   local pf="$GOALSPEC_ROOT/project/profile.yaml"
-  local keys key n i cmd status vout
+  local keys key n i cmd status vout env_hint=""
   [ -f "$pf" ] || return 0
   vout="$(mktemp)"
   keys="test build lint typecheck audit sast"
@@ -141,7 +171,24 @@ goalspec_delivery_run_final_verification() {
         else
           status=$?
         fi
-        [ "$status" -eq 0 ] || { cat "$vout" >&2; /bin/rm -f "$vout"; return 1; }
+        if [ "$status" -ne 0 ]; then
+          echo "final verification command failed (exit=$status): $cmd" >&2
+          cat "$vout" >&2
+          # If the profile declares external services/fidelity, the failure may
+          # be a missing environment rather than a code defect. Surface the
+          # likely cause once so the user narrows commands.test to
+          # sandbox-reproducible checks instead of chasing a phantom bug.
+          if [ -z "$env_hint" ] && {
+            [ -n "$(yq e '.environment.required_services // [] | .[]' "$pf" 2>/dev/null)" ] \
+            || [ "$(yq e '.environment.fidelity.enabled // false' "$pf" 2>/dev/null)" = "true" ]
+          }; then
+            env_hint=1
+            echo "  hint: profile declares external services/fidelity — this may be an environment dependency, not a code failure" >&2
+            echo "  keep commands.test sandbox-reproducible; move DB/Redis/Browser/LLM tests to environment.smoke_tests / fidelity / CI" >&2
+          fi
+          /bin/rm -f "$vout"
+          return 1
+        fi
       fi
       i=$((i+1))
     done

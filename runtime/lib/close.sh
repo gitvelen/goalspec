@@ -344,10 +344,26 @@ goalspec_close_validate_readiness_snapshot() {
 }
 
 goalspec_close_recheck_changed_files_hash() {
-  local cpf="$GOALSPEC_ROOT/active/close-package.yaml" expected
+  local cpf="$GOALSPEC_ROOT/active/close-package.yaml" expected base changed f
   expected="$(yq e '.hashes.changed_files_hash // ""' "$cpf")"
   [ "$expected" = "$(goalspec_changed_files_hash)" ] || {
     echo "changed files changed during final verification; run /goalspec run to regenerate the close package"
+    # List what drifted so the user can tell a verification artifact (json
+    # report, cache) from a real code edit. The common cause is final
+    # verification writing test/build outputs that should be gitignored.
+    base="$(yq e '.git.base_revision // ""' "$GOALSPEC_ROOT/active/state.yaml" 2>/dev/null || echo "")"
+    changed="$(goalspec_git_changed_files "$base" | sort -u)"
+    while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      goalspec_git_is_framework_file "$f" && continue
+      case "$f" in
+        artifacts/*|build/*|dist/*|target/*|out/*|*.pytest_cache/*|*report*.json|*coverage*.json|*.lcov)
+          echo "  artifact-like (consider 'git rm --cached -- $f' + .gitignore): $f" ;;
+        *)
+          echo "  changed: $f" ;;
+      esac
+    done <<<"$changed"
+    echo "if these are verification artifacts, gitignore them so the changed-files hash stays stable"
     return 1
   }
 }
