@@ -12,6 +12,14 @@ commands:
   build: []
   lint: []
   typecheck: []
+  # Optional security / dependency gates — run at /goalspec close as final
+  # verification, on the same path as test/build/lint/typecheck. Leave empty
+  # to skip. A non-zero exit fails close (same as a failing test).
+  # Examples:
+  #   audit: ["npm audit --omit=dev", "pip-audit -q", "cargo audit"]
+  #   sast:  ["semgrep --config=auto --error src/"]
+  audit: []
+  sast: []
 environment:
   required_services: []
   required_env_vars: []

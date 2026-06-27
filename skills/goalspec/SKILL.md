@@ -115,5 +115,5 @@ If the human asks whether something was actually observed or proven, answer from
 - Never manually substitute for `.goalspec/goalspec close` with git/gh/archive/state edits.
 - Never directly write `status: closed`.
 - Never start a new change unless status is `no_goal` or `closed`.
-- Only cite `reproducible: true` evidence whose `command` genuinely re-passes — the sensor re-runs it at `judge apply` and rejects the verdict on a failing re-run. Mark side-effecting evidence `reproducible: false`.
+- Only cite `reproducible: true` evidence whose `command` genuinely re-passes — the sensor re-runs it at `judge apply` and rejects the verdict on a failing re-run. Mark side-effecting evidence `reproducible: false`. For the full evidence field guide (fields, runtime_boundary matching, the reproducible/side-effect/flaky rules Subagents follow when producing evidence), see `references/evidence-writing.md`.
 - Treat `.goalspec/active/harness-improvement-candidate.yaml` (emitted on `capped`/`stalled`) as advisory. Never fill `proposed_target`/`prediction` or set `promoted: true` automatically — promotion is human-gated.
