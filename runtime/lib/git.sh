@@ -56,3 +56,25 @@ goalspec_git_business_dirty() {
   done <<<"$files"
   [ "$found" -eq 1 ]
 }
+
+# Is the business worktree clean relative to HEAD? Used at `start` time, BEFORE
+# state.yaml is reset, so it must NOT read .git.base_revision — that value is
+# the previous goal's freeze base (or the not-yet-written template default) and
+# would give the wrong baseline. A dirty worktree here gets snapshotted into
+# .goalspec/artifacts/intake/ by `source` (intake.sh cp), corrupting intake
+# provenance that freeze.sh:50 cannot catch: the dirty snapshot is frozen at
+# source time, before freeze ever runs. Non-git projects are treated as clean.
+goalspec_git_worktree_clean() {
+  goalspec_git_in_repo || return 0
+  local files f found=0
+  files="$(
+    git -C "$PROJECT_ROOT" diff --name-only HEAD 2>/dev/null
+    git -C "$PROJECT_ROOT" ls-files --others --exclude-standard 2>/dev/null
+  )"
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    goalspec_git_is_framework_file "$f" && continue
+    found=1; break
+  done <<<"$files"
+  [ "$found" -eq 0 ]
+}

@@ -7,6 +7,14 @@ state_file="$GOALSPEC_ROOT/active/state.yaml"
 
 ensure_active_goal() {
   goalspec_assert_can_start || exit 1
+  if ! goalspec_git_worktree_clean; then
+    echo "start blocked: business worktree has uncommitted changes relative to HEAD." >&2
+    echo "  intake snapshots source files into .goalspec/artifacts/intake/ at 'source' time," >&2
+    echo "  so a dirty worktree corrupts intake provenance — freeze cannot catch this" >&2
+    echo "  (the dirty snapshot is frozen before freeze runs). Commit or stash first." >&2
+    echo "NEXT_USER_ACTION: commit or stash business changes, then run 'goalspec start' again." >&2
+    exit 1
+  fi
   goalspec_reset_active_workspace
 }
 
