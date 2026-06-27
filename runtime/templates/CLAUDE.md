@@ -23,6 +23,8 @@ Goalspec 受管工作前，运行或读取：
 
 只有 `closed` 表示本次变更已完整收口，才可开启下一次 `/goalspec start <intent>`。
 
+`/goalspec start` 还要求业务 worktree 相对 `HEAD` 干净：dirty 的改动会在 `source` 时被快照进 intake provenance，而该快照在 `freeze` 之前就已冻结，freeze 无法捕获。启动前先 commit 或 stash 业务改动。
+
 ## 人类命令映射
 
 人类命令被机械翻译为 Agent CLI 调用，且仅允许下表中匹配的人类输入触发对应翻译。
@@ -71,5 +73,5 @@ run-loop（即上述 Master/Subagent 循环）在以下 stop condition 任一成
 
 reopen 仅用于冻结的 Goal/Criteria/Constraints 本身错误、不足、矛盾、或与人类新的验收口径冲突；细则见 `.goalspec/ai/core.md`。
 
-close 仅在人类运行 `/goalspec close` 后经 `.goalspec/goalspec close` 完成，不得用 git、push、PR、归档、状态编辑或直接写 `status: closed` 替代。收口需所有 required Criteria 拿到 fresh Master pass verdict、close-readiness 在 `/goalspec run` 中通过、当前 close package、最终验证、验证后 changed-files 复核、以及已配置的 delivery mode。
+close 仅在人类运行 `/goalspec close` 后经 `.goalspec/goalspec close` 完成，不得用 git、push、PR、归档、状态编辑或直接写 `status: closed` 替代。收口需所有 required Criteria 拿到 fresh Master pass verdict、close-readiness 在 `/goalspec run` 中通过、当前 close package、最终验证、验证后 changed-files 复核、密钥/大文件扫描、（若配置）smoke 门禁、以及已配置的 delivery mode。
 <!-- GOALSPEC:END -->

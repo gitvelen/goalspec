@@ -320,6 +320,16 @@ Normal “confirm”, bare “确认”, “continue”, “ok”, or silence ar
 
 There is also a review obligation between `/goalspec end` and `freeze`: AI must actively present a concise Goal / Criteria / Constraints summary and wait for `确认并冻结契约` before freezing.
 
+## Start gate
+
+`/goalspec start` refuses to open intake unless the business worktree is clean relative to `HEAD`. A dirty worktree is snapshotted into `.goalspec/artifacts/intake/` by `source` at intake time, and that snapshot is frozen *before* `freeze` runs — so freeze cannot catch a stale or contaminated snapshot. Commit or stash business changes before starting.
+
+- Clean means no modified or untracked business files vs `HEAD`.
+- `.goalspec/*`, `AGENTS.md`, and `CLAUDE.md` are framework files and do not count as business changes.
+- A non-git project is treated as clean.
+
+This guards intake provenance, not implementation: once intake opens, normal editing resumes.
+
 ## Run gate
 
 `/goalspec run` refuses execution unless all preconditions pass:
@@ -551,16 +561,17 @@ It prints `allowed_paths` (contract patterns plus approved amendments), `forbidd
 
 1. Validate the close package and recompute every bound hash (contract, evidence, verdict, memory-patch, changed-files, suggested delivery, close package).
 2. Run final verification (test/build/lint/typecheck, plus optional `audit`/`sast` security & dependency gates, from `.goalspec/project/profile.yaml`). These must be sandbox-reproducible — a command needing a live DB/Redis/Browser/LLM fails close as if the code were broken; move such tests to `environment.smoke_tests` / `fidelity` / CI. On failure, close names the failing command and exit code, and (if the profile declares external services) flags a likely environment dependency.
-3. Re-check the changed-files hash after final verification, so verification cannot silently add files after package review.
-4. Scan for secrets, large files, and disallowed temp files. Password detection stays wide (quote and bare literals, to catch real `.env`-style leaks) but skips function-call assignments (`password=env.get(...)`); `.delivery.scan_allow_paths` exempts known dummy-credential paths (tests/fixtures/docs).
-5. Apply the memory patch to `.goalspec/project/**`.
-6. Archive active files to `.goalspec/history/vNNNN/` and update `project/versions.yaml`.
-7. Execute the configured delivery mode:
+3. Run the smoke gate and Ralph Wiggum audit. Each `environment.smoke_tests` entry — a real end-to-end check that physically traverses invariants outside the implementer's control (a real DB engine's constraints, a real service process, real I/O) — runs under its `fidelity` boundary (bootstrap → command → teardown). With no `smoke_tests` configured, close emits `SMOKE_WARNING` + `RALPH_WIGGUM_WARNING` (the all-soft close: pass verdicts not backed by any objective gate) but still succeeds — backward compatible. Set `environment.fidelity.enforce_on_close: true` to make a failing smoke test fail close.
+4. Re-check the changed-files hash after final verification, so verification cannot silently add files after package review.
+5. Scan for secrets, large files, and disallowed temp files. Password detection stays wide (quote and bare literals, to catch real `.env`-style leaks) but skips function-call assignments (`password=env.get(...)`); `.delivery.scan_allow_paths` exempts known dummy-credential paths (tests/fixtures/docs).
+6. Apply the memory patch to `.goalspec/project/**`.
+7. Archive active files to `.goalspec/history/vNNNN/` and update `project/versions.yaml`.
+8. Execute the configured delivery mode:
    - `github_pr`: create/reuse a delivery branch, commit, push, open a PR, then record delivery metadata.
    - `push_only`: create/reuse a delivery branch, commit, push, and record delivery metadata without creating a PR.
    - `local_commit`: create local commits and delivery metadata without requiring a remote or `gh`.
    - `archive_only`: archive and close without git commits, push, or PR.
-8. Enter `closed`.
+9. Enter `closed`.
 
 Close is recoverable. If it fails mid-way it stops at a checkpoint; re-running `/goalspec close` continues from there without repeating the main commit. A stale close package (any bound hash changed since generation) is rejected — re-run `/goalspec run` to regenerate it. Full scope/Constraints-projection readiness is handled by `/goalspec run` and `status`; close validates the reviewed package and rejects unreviewed deltas.
 
@@ -600,6 +611,20 @@ Evidence/Progress Report
 Master Evaluation
 ```
 
+## Constraints
+
+Constraints are the AI's boundaries, kept in two layers:
+
+- `project/constraints.yaml` — long-term project constraints (id, category, `level`, statement, source_refs, applies_to);
+- `contract.yaml` constraints — goal-level constraints for the active change.
+
+Every constraint carries a severity `level`:
+
+- `level: hard` — a hard boundary. The Master runs a **Constraint Conformance** check alongside the Coverage Audit: any implementation that violates a `level: hard` constraint must be judged `fail` for that criterion, with a reason including `Constraint violation: <constraint_id>` — even if the Coverage Audit would otherwise pass.
+- `level: soft` — a guideline. A violation is noted in the verdict reason but does not by itself fail a criterion.
+
+Constraints are enforced at Master-verdict time, so a constraint violation cannot hide behind a passing Coverage Audit. Authoring guidance lives in the goalspec skill's `references/constraint-extraction.md`.
+
 ## Criteria
 
 All entries under `criteria:` are required by default. Do not add repetitive `required: true` fields.
@@ -626,7 +651,7 @@ Completion is tracked through:
 - `criteria_ref` -> evidence bindings in `evidence.yaml`;
 - latest Master verdict per `criteria_ref` in `verdict.yaml`.
 
-Goalspec does **not** treat internal task lists, work units, or implementation steps as the unit of completion.
+Goalspec does **not** treat internal task lists, work units, or implementation steps as the unit of completion. The `### Workunit:` headings a `goal.md` may use are readability and criteria-traceability groupings only — they are not execution units, do not sequence work, and do not set implementation priority. The Master drives by criterion, not by workunit.
 
 Closure requires all required Criteria to have fresh pass verdicts, Constraints to remain respected, a current `.goalspec/active/close-package.yaml`, final verification to pass, and `.goalspec/goalspec close` to complete the configured delivery mode.
 
