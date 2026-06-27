@@ -8,6 +8,9 @@ fresh_initialized_repo goalc-36-source-window
 
 # --- source BEFORE start must fail and must not bootstrap a goal ---
 echo "seed" > "$REPO/seed.txt"
+# start's worktree-clean gate (goalc_69) treats an untracked source file as a
+# dirty worktree — commit it so the happy-path start below can open a window.
+git -C "$REPO" add seed.txt && git -C "$REPO" commit -qm "seed source"
 if "$REPO_GS" source seed.txt >/dev/null 2>"$TESTS_TMP_ROOT/src-before.err"; then
   bad "source accepted before start"
 else
