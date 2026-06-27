@@ -321,6 +321,16 @@ AI 工具只能把它们当作人类显式 `/goalspec ...` 命令的直接翻译
 
 此外，在 `/goalspec end` 和 `freeze` 之间还有一层审阅义务：AI 必须主动把起草好的 `Goal / Criteria / Constraints` 包展示给人类，并等待显式确认后才能 freeze。
 
+## Start gate（启动门禁）
+
+`/goalspec start` 在业务 worktree 相对 `HEAD` 不干净时会拒绝打开 intake。dirty 的 worktree 会在 intake 阶段被 `source` 快照进 `.goalspec/artifacts/intake/`，而这份快照在 `freeze` 运行*之前*就已冻结——因此 freeze 无法捕获陈旧或被污染的快照。启动前请先 commit 或 stash 业务改动。
+
+- 干净的定义：相对 `HEAD` 没有已修改或未跟踪的业务文件。
+- `.goalspec/*`、`AGENTS.md`、`CLAUDE.md` 是框架文件，不计为业务改动。
+- 非 git 项目视为干净。
+
+它保护的是 intake provenance，而非实施：intake 一旦打开，正常的编辑照常进行。
+
 ## Run gate
 
 `/goalspec run` 只有在所有前置条件都满足时才允许执行：
@@ -566,16 +576,17 @@ Scope 是 Constraints 的投影：`contract.yaml` 中的 `allowed_paths` 与 `fo
 
 1. 校验 close package，并重新计算所有绑定 hash（contract、evidence、verdict、memory-patch、changed-files、suggested delivery、close package）。
 2. 运行 final verification（来自 `.goalspec/project/profile.yaml` 的 test/build/lint/typecheck，以及可选的 `audit`/`sast` 安全与依赖审计 gate）。这些命令必须是 sandbox 可复现的——需要真实 DB/Redis/Browser/LLM 的命令会让 close 像代码损坏一样失败；这类测试应移入 `environment.smoke_tests` / `fidelity` / CI。失败时 close 会标明失败的命令与 exit code，并在 profile 声明了外部服务时提示可能是环境依赖而非代码问题。
-3. 扫描 secrets、大文件和不允许的临时文件。密码检测保持宽匹配（引号与裸字面量，以捕获 `.env` 式真泄漏），但跳过函数调用赋值（`password=env.get(...)`）；`.delivery.scan_allow_paths` 可豁免已知假凭证路径（tests/fixtures/docs）。
-4. 再次执行 scope-check。
-5. 把 memory patch 应用到 `.goalspec/project/**`。
-6. 把 active 文件归档到 `.goalspec/history/vNNNN/`，并更新 `project/versions.yaml`。
-7. 执行配置好的交付模式：
+3. 运行 smoke gate 与 Ralph Wiggum 审计。每条 `environment.smoke_tests`——一种真实端到端检查，会物理性地穿过实现者控制之外的不变量（真实 DB 引擎的约束、真实服务进程、真实 I/O）——在其 `fidelity` 边界下运行（bootstrap → command → teardown）。未配置 `smoke_tests` 时，close 会发出 `SMOKE_WARNING` + `RALPH_WIGGUM_WARNING`（全软收口：pass verdict 背后没有任何客观 gate 支撑），但仍算成功——向后兼容。设置 `environment.fidelity.enforce_on_close: true` 可让失败的 smoke 测试直接 fail close。
+4. 在 final verification 之后再次核对 changed-files hash，确保验证过程不会在 package 审阅之后悄悄新增文件。
+5. 扫描 secrets、大文件和不允许的临时文件。密码检测保持宽匹配（引号与裸字面量，以捕获 `.env` 式真泄漏），但跳过函数调用赋值（`password=env.get(...)`）；`.delivery.scan_allow_paths` 可豁免已知假凭证路径（tests/fixtures/docs）。
+6. 把 memory patch 应用到 `.goalspec/project/**`。
+7. 把 active 文件归档到 `.goalspec/history/vNNNN/`，并更新 `project/versions.yaml`。
+8. 执行配置好的交付模式：
    - `github_pr`：创建或复用交付分支，commit、push、打开 PR，再记录交付 metadata。
    - `push_only`：创建或复用交付分支，commit、push，记录交付 metadata，但不创建 PR。
    - `local_commit`：创建本地 commit 和交付 metadata，不要求 remote 或 `gh`。
    - `archive_only`：只归档并收口，不做 git commit、push 或 PR。
-8. 进入 `closed`。
+9. 进入 `closed`。
 
 Close 是可恢复的。如果它中途失败，会停在 checkpoint；再次运行 `/goalspec close` 会从断点继续，而不会重复创建主 commit。只要任何绑定 hash 在生成后发生变化，close package 就会 stale（被拒绝），此时必须重新运行 `/goalspec run` 来生成新的 package。
 
@@ -615,6 +626,20 @@ Evidence/Progress Report
 Master Evaluation
 ```
 
+## Constraints（约束）
+
+Constraints 是 AI 的边界，分两层维护：
+
+- `project/constraints.yaml` —— 长期项目约束（id、category、`level`、statement、source_refs、applies_to）；
+- `contract.yaml` 约束 —— 当前变更的 goal-level 约束。
+
+每条约束都带一个严重级别 `level`：
+
+- `level: hard` —— 硬边界。Master 会在 Coverage Audit 之外额外执行一次 **Constraint Conformance** 检查：任何违反 `level: hard` 约束的实现，都必须被判为该 criterion `fail`，reason 中包含 `Constraint violation: <constraint_id>`——即使 Coverage Audit 本应通过。
+- `level: soft` —— 指引性约束。违反会写进 verdict 的 reason，但本身不会让 criterion 失败。
+
+Constraints 在 Master 判定时强制执行，因此约束违反无法藏在一通过的 Coverage Audit 背后。约束起草指引见 goalspec skill 的 `references/constraint-extraction.md`。
+
 ## Criteria
 
 `criteria:` 下的所有条目默认都是 required，不要重复写 `required: true`。
@@ -641,7 +666,7 @@ Evidence 记录的是可观察事实，并把这些事实绑定到 `Criteria`。
 - `criteria_ref` -> `evidence.yaml` 中的 evidence 绑定；
 - 每个 `criteria_ref` 在 `verdict.yaml` 中的最新 Master verdict。
 
-Goalspec **不会**把内部任务清单、work units 或实现步骤当作“完成单位”。
+Goalspec **不会**把内部任务清单、work units 或实现步骤当作“完成单位”。`goal.md` 里可能出现的 `### Workunit:` 分组只是可读性与 criteria 追溯分组——它们不是执行单位、不排序、也不决定实施优先级。Master 按 criterion 驱动，而非按 workunit。
 
 要满足 closure，必须同时满足：所有必需 `Criteria` 都有 fresh pass verdict、`Constraints` 仍被遵守、`.goalspec/active/close-package.yaml` 是当前的、final verification 通过，并且 `.goalspec/goalspec close` 成功完成交付。
 
