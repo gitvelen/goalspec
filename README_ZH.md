@@ -565,8 +565,8 @@ Scope 是 Constraints 的投影：`contract.yaml` 中的 `allowed_paths` 与 `fo
 `/goalspec close` 是唯一面向用户的收口命令。它确认当前 close package，并授权执行配置好的交付模式：
 
 1. 校验 close package，并重新计算所有绑定 hash（contract、evidence、verdict、memory-patch、changed-files、suggested delivery、close package）。
-2. 运行 final verification（来自 `.goalspec/project/profile.yaml` 的 test/build/lint/typecheck，以及可选的 `audit`/`sast` 安全与依赖审计 gate）。
-3. 扫描 secrets、大文件和不允许的临时文件。
+2. 运行 final verification（来自 `.goalspec/project/profile.yaml` 的 test/build/lint/typecheck，以及可选的 `audit`/`sast` 安全与依赖审计 gate）。这些命令必须是 sandbox 可复现的——需要真实 DB/Redis/Browser/LLM 的命令会让 close 像代码损坏一样失败；这类测试应移入 `environment.smoke_tests` / `fidelity` / CI。失败时 close 会标明失败的命令与 exit code，并在 profile 声明了外部服务时提示可能是环境依赖而非代码问题。
+3. 扫描 secrets、大文件和不允许的临时文件。密码检测保持宽匹配（引号与裸字面量，以捕获 `.env` 式真泄漏），但跳过函数调用赋值（`password=env.get(...)`）；`.delivery.scan_allow_paths` 可豁免已知假凭证路径（tests/fixtures/docs）。
 4. 再次执行 scope-check。
 5. 把 memory patch 应用到 `.goalspec/project/**`。
 6. 把 active 文件归档到 `.goalspec/history/vNNNN/`，并更新 `project/versions.yaml`。

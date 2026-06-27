@@ -8,6 +8,10 @@ stack:
   package_managers: []
   runtimes: []
 commands:
+  # test/build/lint/typecheck run at /goalspec close as final verification.
+  # They MUST be sandbox-reproducible — no live DB/Redis/Browser/LLM. Tests that
+  # need external services belong in environment.smoke_tests / fidelity / CI,
+  # not here: a missing service fails close as if the code were broken.
   test: []
   build: []
   lint: []
@@ -61,6 +65,14 @@ delivery:
   mode: github_pr
   remote: origin
   base_branch: main
+  # scan_allow_paths: glob patterns for paths exempt from the close-time secret
+  # scan (e.g. tests/fixtures/docs with hard-coded DUMMY credentials). Only list
+  # paths you have confirmed contain NO real credentials — an exempted real leak
+  # is not caught. Empty (default) = scan everything.
+  # scan_allow_paths:
+  #   - "tests/**"
+  #   - "docs/**"
+  scan_allow_paths: []
 # run-loop stop-loss: the Master/Subagent loop inside a single /goalspec run is
 # capped at this many judge-apply rounds. Set before the loop runs (Akshy: exit
 # conditions are decided before running, not during). Default 8.
