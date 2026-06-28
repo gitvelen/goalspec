@@ -66,9 +66,20 @@ YML
 
 echo y >> "$REPO/src/a.txt"
 if "$REPO_GS" close >/tmp/goalspec-close.out 2>&1; then
-  bad "close succeeded with stale close package"
+  bad "close succeeded with stale delivery identity"
 else
-  grep -q 'close package stale' /tmp/goalspec-close.out && ok "close blocks stale package" || bad "close failed for unexpected reason"
+  grep -q 'close package stale: .*changed_files_hash' /tmp/goalspec-close.out && ok "close blocks changed-files identity drift" || bad "close failed for unexpected reason"
+fi
+printf 'x\n' > "$REPO/src/a.txt"
+
+# Derived package metadata drift should not turn close into a second broad audit
+# when live contract/scope/evidence/delivery safety still holds.
+yq e -i '.delivery.mode = "archive_only"' "$REPO/.goalspec/project/profile.yaml"
+yq e -i '.hashes.evidence_hash = "sha256:derived-drift" | .hashes.verdict_hash = "sha256:derived-drift" | .hashes.suggested_delivery_hash = "sha256:derived-drift" | .readiness.criteria_ready = false | .readiness.blockers = ["derived"]' "$REPO/.goalspec/active/close-package.yaml"
+if "$REPO_GS" close >/tmp/goalspec-close-derived.out 2>&1; then
+  ok "close tolerates advisory package metadata drift when live gates pass"
+else
+  bad "close blocked advisory package metadata drift: $(cat /tmp/goalspec-close-derived.out)"
 fi
 
 # Final verification can create files after the initial package hash check.

@@ -27,7 +27,9 @@ ${crit:+  - criterion of interest: $crit}
 Verify the relevant Criteria against the evidence. Rules:
   - context MUST be fresh; do not trust the Subagent's self-report.
   - the verdict's contract_hash MUST equal the current frozen contract hash.
-  - the verdict's evidence_hash MUST equal the current evidence.yaml hash.
+  - the verdict's evidence_hash MUST equal the current evidence.yaml hash at
+    judge-apply time; later close freshness is based on evidence_basis_hash for
+    the cited evidence_refs.
   - all referenced evidence_ids and criteria_refs must exist.
   - a 'pass' verdict MUST cite evidence whose runtime_boundary and facets meet
     the criterion's evidence_requirement_refs.
@@ -57,6 +59,7 @@ Emit a YAML document with these fields:
   evidence_refs: [EV-...]
   contract_hash: "<sha256:...>"
   evidence_hash: "<sha256:...>"
+  evidence_basis_hash: "<sha256:...>"  # hash of cited evidence_refs only
   verdict: pass | fail | insufficient | blocked | stale | reopen_required
   reason: |-
     Coverage audit:
@@ -119,6 +122,13 @@ EOF
       fi
       i=$((i+1))
     done
+    basis_refs="$(yq e '.evidence_refs[]' "$file" 2>/dev/null || true)"
+    cur_basis="$(printf '%s\n' "$basis_refs" | goalspec_evidence_basis_hash 2>/dev/null || true)"
+    [ -n "$cur_basis" ] || { echo "judge apply: could not compute evidence_basis_hash" >&2; exit 1; }
+    v_basis="$(yq e '.evidence_basis_hash // ""' "$file")"
+    if [ -n "$v_basis" ] && [ "$v_basis" != "null" ] && [ "$v_basis" != "$cur_basis" ]; then
+      echo "judge apply: evidence_basis_hash mismatch (verdict=$v_basis current=$cur_basis) — re-judge" >&2; exit 1
+    fi
     verdict="$(yq e '.verdict' "$file")"
     # A pass verdict must show its semantic coverage work, not just say tests
     # passed. This is intentionally a lightweight format guard; the Master still
@@ -184,8 +194,8 @@ EOF
     # Append to verdict.yaml
     goalspec_init_list_file "$vf" verdicts
     tmp="$(mktemp)"
-    # Copy the verdict file with judged_at injected.
-    yq ".judged_at = \"$(goalspec_now)\"" "$file" > "$tmp"
+    # Copy the verdict file with judged_at and the selective evidence basis injected.
+    yq ".judged_at = \"$(goalspec_now)\" | .evidence_basis_hash = \"$cur_basis\"" "$file" > "$tmp"
     yq e -i ".verdicts += load(\"$tmp\")" "$vf"
     /bin/rm -f "$tmp"
     # Update evidence_hash snapshot in state to track future stale.

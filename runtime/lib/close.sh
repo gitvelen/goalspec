@@ -16,15 +16,12 @@ goalspec_close_latest_verdict_field() {
 
 goalspec_close_criterion_pass_blocker() {
   local cid="$1"
-  local cur_chash cur_ehash verdict v_chash v_ehash evidence_refs er e_chash
+  local cur_chash cur_basis verdict v_chash v_ehash v_basis evidence_refs er e_chash
   cur_chash="$(goalspec_contract_hash)"
-  cur_ehash="$(goalspec_evidence_hash)"
   verdict="$(goalspec_close_latest_verdict_field "$cid" verdict)"
   [ "$verdict" = "pass" ] || { echo "no_pass"; return 1; }
   v_chash="$(goalspec_close_latest_verdict_field "$cid" contract_hash)"
   [ "$v_chash" = "$cur_chash" ] || { echo "stale_contract"; return 1; }
-  v_ehash="$(goalspec_close_latest_verdict_field "$cid" evidence_hash)"
-  [ "$v_ehash" = "$cur_ehash" ] || { echo "stale_evidence"; return 1; }
   evidence_refs="$(yq e "[.verdicts[] | select(.criteria_ref == \"$cid\")] | .[-1].evidence_refs[]" "$GOALSPEC_ROOT/active/verdict.yaml" 2>/dev/null || true)"
   [ -n "$evidence_refs" ] || { echo "no_evidence_refs"; return 1; }
   while IFS= read -r er; do
@@ -36,6 +33,16 @@ goalspec_close_criterion_pass_blocker() {
     e_chash="$(yq e ".evidence[] | select(.id == \"$er\") | .contract_hash // \"\"" "$GOALSPEC_ROOT/active/evidence.yaml" 2>/dev/null || true)"
     [ "$e_chash" = "$cur_chash" ] || { echo "stale_evidence_contract_$er"; return 1; }
   done <<<"$evidence_refs"
+  v_basis="$(goalspec_close_latest_verdict_field "$cid" evidence_basis_hash)"
+  if [ -n "$v_basis" ] && [ "$v_basis" != "null" ]; then
+    cur_basis="$(printf '%s\n' "$evidence_refs" | goalspec_evidence_basis_hash 2>/dev/null || true)"
+    [ "$v_basis" = "$cur_basis" ] || { echo "stale_evidence_basis"; return 1; }
+  else
+    # Legacy verdicts predate evidence_basis_hash. Preserve the old global-hash
+    # rule for them rather than guessing freshness from incomplete metadata.
+    v_ehash="$(goalspec_close_latest_verdict_field "$cid" evidence_hash)"
+    [ "$v_ehash" = "$(goalspec_evidence_hash)" ] || { echo "legacy_verdict_refresh_required"; return 1; }
+  fi
 }
 
 goalspec_close_criterion_has_fresh_pass() {
@@ -46,18 +53,19 @@ goalspec_close_criterion_has_fresh_pass() {
 # latest verdict basis and fresh-pass blocker so stale pass -> fresh pass counts
 # as real progress after reopen/refreeze.
 goalspec_close_verdict_fingerprint() {
-  local cid verdict v_chash v_ehash blocker completion fp=""
+  local cid verdict v_chash v_ehash v_basis blocker completion fp=""
   while IFS= read -r cid; do
     [ -z "$cid" ] && continue
     verdict="$(goalspec_close_latest_verdict_field "$cid" verdict)"
     v_chash="$(goalspec_close_latest_verdict_field "$cid" contract_hash)"
     v_ehash="$(goalspec_close_latest_verdict_field "$cid" evidence_hash)"
+    v_basis="$(goalspec_close_latest_verdict_field "$cid" evidence_basis_hash)"
     if blocker="$(goalspec_close_criterion_pass_blocker "$cid")"; then
       completion="fresh_pass"
     else
       completion="$blocker"
     fi
-    fp="${fp}${cid}:verdict=${verdict}:contract=${v_chash}:evidence=${v_ehash}:completion=${completion}|"
+    fp="${fp}${cid}:verdict=${verdict}:contract=${v_chash}:evidence=${v_ehash}:basis=${v_basis}:completion=${completion}|"
   done <<<"$(goalspec_close_required_criteria_ids)"
   printf '%s' "$fp"
 }
@@ -312,17 +320,22 @@ MD
 }
 
 goalspec_close_validate_package_hashes() {
+  goalspec_close_validate_package_identity
+}
+
+# Thin close gate: validate only user-reviewed package identity and delivery
+# content identity. Derived readiness/presentation hashes are checked live or
+# treated as advisory so close does not become a second broad audit pass.
+goalspec_close_validate_package_identity() {
   local cpf="$GOALSPEC_ROOT/active/close-package.yaml"
   [ -f "$cpf" ] || { echo "close package missing"; return 1; }
   local bad=""
   [ "$(yq e '.hashes.contract_hash // ""' "$cpf")" = "$(goalspec_contract_hash)" ] || bad="${bad}contract_hash "
   [ "$(yq e '.hashes.scope_hash // ""' "$cpf")" = "$(goalspec_scope_hash)" ] || bad="${bad}scope_hash "
-  [ "$(yq e '.hashes.evidence_hash // ""' "$cpf")" = "$(goalspec_evidence_hash)" ] || bad="${bad}evidence_hash "
-  [ "$(yq e '.hashes.verdict_hash // ""' "$cpf")" = "$(goalspec_verdict_hash)" ] || bad="${bad}verdict_hash "
-  [ "$(yq e '.hashes.memory_patch_hash // ""' "$cpf")" = "$(goalspec_memory_patch_hash)" ] || bad="${bad}memory_patch_hash "
   [ "$(yq e '.hashes.changed_files_hash // ""' "$cpf")" = "$(goalspec_changed_files_hash)" ] || bad="${bad}changed_files_hash "
-  [ "$(yq e '.hashes.suggested_delivery_hash // ""' "$cpf")" = "$(goalspec_suggested_delivery_hash)" ] || bad="${bad}suggested_delivery_hash "
-  [ "$(yq e '.hashes.close_package_hash // ""' "$cpf")" = "$(goalspec_close_package_hash)" ] || bad="${bad}close_package_hash "
+  [ "$(yq e '.hashes.memory_patch_hash // ""' "$cpf")" = "$(goalspec_memory_patch_hash)" ] || bad="${bad}memory_patch_hash "
+  # close_package_hash covers presentation/derived fields too. Do not make it a
+  # close hard gate; live identity/safety checks below are authoritative.
   [ -z "$bad" ] || { echo "close package stale: $bad"; return 1; }
 }
 
@@ -332,15 +345,17 @@ goalspec_close_package_has_readiness() {
 }
 
 goalspec_close_validate_readiness_snapshot() {
-  local cpf="$GOALSPEC_ROOT/active/close-package.yaml" bad=""
-  goalspec_close_package_has_readiness || { echo "close package has no readiness snapshot"; return 1; }
-  [ "$(yq e '.readiness.criteria_ready // false' "$cpf")" = "true" ] || bad="${bad}criteria_ready "
-  [ "$(yq e '.readiness.scope_projection_ready // false' "$cpf")" = "true" ] || bad="${bad}scope_projection_ready "
-  [ "$(yq e '.readiness.memory_ready // false' "$cpf")" = "true" ] || bad="${bad}memory_ready "
-  [ "$(yq e '.readiness.scope_hash // ""' "$cpf")" = "$(goalspec_scope_hash)" ] || bad="${bad}scope_hash "
-  [ "$(yq e '.readiness.changed_files_hash // ""' "$cpf")" = "$(goalspec_changed_files_hash)" ] || bad="${bad}changed_files_hash "
-  [ "$(yq e '.readiness.blockers | length' "$cpf" 2>/dev/null || echo 1)" = "0" ] || bad="${bad}blockers "
-  [ -z "$bad" ] || { echo "close package readiness stale: $bad"; return 1; }
+  goalspec_close_validate_live_safety
+}
+
+goalspec_close_validate_live_safety() {
+  local bad=""
+  goalspec_close_validate_pass_evidence >/dev/null || bad="${bad}pass_evidence_invalid "
+  GOALSPEC_SCOPE_ROLE=system goalspec_scope_check_run >/dev/null 2>&1 || bad="${bad}scope_projection "
+  local mpf="$GOALSPEC_ROOT/active/memory-patch.yaml"
+  [ -f "$mpf" ] || bad="${bad}memory_patch_missing "
+  yq e '.patches | length' "$mpf" 2>/dev/null | grep -Eq '^[0-9]+$' || bad="${bad}memory_patch_invalid "
+  [ -z "$bad" ] || { echo "close live safety failed: $bad"; return 1; }
 }
 
 goalspec_close_recheck_changed_files_hash() {

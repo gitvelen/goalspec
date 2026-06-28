@@ -136,9 +136,12 @@ goalspec_intake_record_conversation_source() {
   if [ "$(yq e '[.sources[] | select(.type == "conversation")] | length' "$f" 2>/dev/null || echo 0)" -gt 0 ]; then
     return 0
   fi
-  # Record the real on-disk transcript path when one can be located, so the
-  # conversation source is traceable instead of a placeholder string.
-  tpath="$(goalspec_transcript_current_path 2>/dev/null || true)"
+  # Record the real on-disk transcript path bound at intake begin when one can be
+  # located, so the conversation source matches the later rendered snapshot.
+  tpath="$(goalspec_transcript_bound_path 2>/dev/null || true)"
+  if [ -z "$tpath" ] || [ "$tpath" = "null" ]; then
+    tpath="$(goalspec_transcript_current_path 2>/dev/null || true)"
+  fi
   [ -n "$tpath" ] && [ -f "$tpath" ] && hash="$(goalspec_hash_file "$tpath")"
   tmp="$(mktemp)"
   yq -o=y --null-input \

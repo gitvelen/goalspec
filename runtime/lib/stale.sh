@@ -137,9 +137,9 @@ goalspec_stale_blockers() {
   if goalspec_stale_prompt_changed; then
     out="${out}prompt_changed "
   fi
-  if goalspec_stale_evidence_changed; then
-    out="${out}evidence_changed "
-  fi
+  # Global evidence.yaml drift is informational. Verdict freshness is checked
+  # against each verdict's cited evidence basis, so appending unrelated evidence
+  # must not block run/close via the aggregate stale blocker.
   if goalspec_stale_memory_patch_changed; then
     out="${out}memory_patch_changed "
   fi

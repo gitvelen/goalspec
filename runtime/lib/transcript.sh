@@ -127,10 +127,15 @@ goalspec_transcript_rebuild() {
   [ -n "$started_at" ] && [ -n "$ended_at" ] || return 1
   goalspec_transcript_has_jq || { echo "goalspec transcript: jq not found; cannot slice" >&2; return 1; }
   conv="$(goalspec_intake_conversation_file)"
-  provider="$(goalspec_transcript_detect)"
-  [ -n "$provider" ] || { echo "goalspec transcript: no AI session root found" >&2; return 1; }
-  file="$(goalspec_transcript_${provider}_locate "$cwd" "$started_at")"
-  [ -n "$file" ] || { echo "goalspec transcript: no session file for provider '$provider' (cwd=$cwd)" >&2; return 1; }
+  provider="$(goalspec_transcript_bound_provider)"
+  file="$(goalspec_transcript_bound_path)"
+  if [ -z "$provider" ] || [ -z "$file" ] || [ "$provider" = "null" ] || [ "$file" = "null" ]; then
+    provider="$(goalspec_transcript_detect)"
+    [ -n "$provider" ] || { echo "goalspec transcript: no AI session root found" >&2; return 1; }
+    file="$(goalspec_transcript_${provider}_locate "$cwd" "$started_at")"
+  fi
+  [ -n "$provider" ] || { echo "goalspec transcript: no provider recorded or detected" >&2; return 1; }
+  [ -n "$file" ] && [ -f "$file" ] || { echo "goalspec transcript: recorded session file missing for provider '$provider' ($file)" >&2; return 1; }
   turns="$(goalspec_transcript_${provider}_render "$file" "$started_at" "$ended_at")"
   if [ -z "$turns" ]; then
     echo "goalspec transcript: no turns in window [$started_at .. $ended_at] from $file" >&2
@@ -154,4 +159,26 @@ goalspec_transcript_current_path() {
   provider="$(goalspec_transcript_detect)" || return 1
   [ -n "$provider" ] || return 1
   goalspec_transcript_${provider}_locate "$cwd" "$started_at"
+}
+
+goalspec_transcript_current_provider() {
+  goalspec_transcript_detect
+}
+
+goalspec_transcript_bind_current() {
+  local state_file="$GOALSPEC_ROOT/active/state.yaml" provider path started_at
+  started_at="$(yq e '.intake_session.started_at // ""' "$state_file" 2>/dev/null || echo "")"
+  provider="$(goalspec_transcript_current_provider 2>/dev/null || true)"
+  [ -n "$provider" ] || return 1
+  path="$(goalspec_transcript_current_path "$PROJECT_ROOT" "$started_at" 2>/dev/null || true)"
+  [ -n "$path" ] || return 1
+  yq e -i ".intake_session.transcript.provider = \"$provider\" | .intake_session.transcript.path = \"$path\"" "$state_file"
+}
+
+goalspec_transcript_bound_provider() {
+  yq e '.intake_session.transcript.provider // ""' "$GOALSPEC_ROOT/active/state.yaml" 2>/dev/null || true
+}
+
+goalspec_transcript_bound_path() {
+  yq e '.intake_session.transcript.path // ""' "$GOALSPEC_ROOT/active/state.yaml" 2>/dev/null || true
 }

@@ -25,6 +25,7 @@ NEEDS_HUMAN_CONFIRMATION="false"
 BLOCKERS=""
 CLOSE_BLOCKERS=""
 UNMET_CRITERIA=""
+CRITERIA_STATUS=""
 NEXT_USER_ACTION="Run /goalspec start <intent> to open a formal intake window."
 
 if [ -f "$state_file" ]; then
@@ -85,12 +86,17 @@ if [ -f "$cf" ]; then
   required_ids="$(yq e '.criteria[].id' "$cf" 2>/dev/null || true)"
   while IFS= read -r cid; do
     [ -z "$cid" ] && continue
-    goalspec_close_criterion_has_fresh_pass "$cid" && continue
     k="$(yq e ".criteria[] | select(.id == \"$cid\") | .kind // \"machine\"" "$cf" 2>/dev/null || echo machine)"
-    UNMET_CRITERIA="${UNMET_CRITERIA}${cid}(${k}) "
+    if blocker="$(goalspec_close_criterion_pass_blocker "$cid")"; then
+      CRITERIA_STATUS="${CRITERIA_STATUS}${cid}=fresh_pass "
+    else
+      UNMET_CRITERIA="${UNMET_CRITERIA}${cid}(${k}) "
+      CRITERIA_STATUS="${CRITERIA_STATUS}${cid}=${blocker} "
+    fi
   done <<<"$required_ids"
 fi
 [ -n "$UNMET_CRITERIA" ] || UNMET_CRITERIA="(none)"
+[ -n "$CRITERIA_STATUS" ] || CRITERIA_STATUS="(none)"
 
 if [ "$FROZEN" = "true" ] && [ "$UNMET_CRITERIA" = "(none)" ] && [ "$STATE" != "closed" ]; then
   readiness_blockers="$(goalspec_close_readiness_blockers)"
@@ -169,8 +175,12 @@ fi
 sb="$(goalspec_stale_blockers)"
 if [ -n "$sb" ]; then
   BLOCKERS="${BLOCKERS}stale: ${sb}"
-  RUN_ALLOWED="false"
   CLOSE_READY="false"
+fi
+# Any blocker reported by status must agree with the run gate: callers should
+# never see RUN_ALLOWED=true beside a hard lifecycle blocker such as scope_stale.
+if [ -n "$BLOCKERS" ]; then
+  RUN_ALLOWED="false"
 fi
 [ -n "$BLOCKERS" ] || BLOCKERS="(none)"
 [ -n "$CLOSE_BLOCKERS" ] || CLOSE_BLOCKERS="(none)"
@@ -187,6 +197,7 @@ needs_human_confirmation: $NEEDS_HUMAN_CONFIRMATION
 blockers: "$BLOCKERS"
 close_blockers: "$CLOSE_BLOCKERS"
 unmet_criteria: "$UNMET_CRITERIA"
+criteria_status: "$CRITERIA_STATUS"
 scope_hash: "$(goalspec_scope_hash 2>/dev/null || echo "")"
 next_user_action: "$NEXT_USER_ACTION"
 EOF
@@ -204,6 +215,7 @@ NEEDS_HUMAN_CONFIRMATION: $NEEDS_HUMAN_CONFIRMATION
 BLOCKERS: $BLOCKERS
 CLOSE_BLOCKERS: $CLOSE_BLOCKERS
 UNMET_CRITERIA: $UNMET_CRITERIA
+CRITERIA_STATUS: $CRITERIA_STATUS
 SCOPE_HASH: $(goalspec_scope_hash 2>/dev/null || echo "")
 NEXT_USER_ACTION: $NEXT_USER_ACTION
 EOF

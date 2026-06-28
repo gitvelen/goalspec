@@ -4,7 +4,8 @@
 #   - criteria_ref: "CRIT-..."
 #   - evidence_refs: [EV-...]
 #   - contract_hash: "<sha256:...>"
-#   - evidence_hash: "<sha256:...>"
+#   - evidence_hash: "<sha256:...>"          # global evidence.yaml audit hash
+#   - evidence_basis_hash: "<sha256:...>"    # hash of cited evidence_refs only
 #   - verdict: pass | fail | insufficient | blocked | stale | reopen_required
 #   - reason: "..."
 #   - context: fresh

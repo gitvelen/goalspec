@@ -143,7 +143,6 @@ goalspec_validate_state() {
   # Staleness is informational lifecycle state, not corruption -> warnings.
   goalspec_stale_goal_changed                   && goalspec_validate_record warning state stale "goal.md changed since approval (re-approve goal)"
   goalspec_stale_contract_changed               && goalspec_validate_record warning state stale "contract.yaml changed since freeze (re-freeze)"
-  goalspec_stale_evidence_changed               && goalspec_validate_record warning state stale "evidence.yaml changed since verdict (re-judge)"
   goalspec_stale_memory_patch_changed           && goalspec_validate_record warning state stale "memory-patch.yaml changed since approval (re-approve memory-patch)"
   goalspec_stale_intake_capture_changed         && goalspec_validate_record warning state stale "intake-capture.md changed since approval"
   goalspec_stale_intake_package_changed         && goalspec_validate_record warning state stale "intake package changed since approval"

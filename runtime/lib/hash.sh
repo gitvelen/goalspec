@@ -133,6 +133,37 @@ goalspec_evidence_hash() {
   goalspec_hash_file "$GOALSPEC_ROOT/active/evidence.yaml"
 }
 
+# Hash only the evidence records cited by a verdict. This is the freshness
+# basis for that verdict: appending unrelated evidence must not stale it, while
+# mutating/deleting any cited evidence must.
+goalspec_evidence_basis_hash() {
+  local ef="$GOALSPEC_ROOT/active/evidence.yaml"
+  local refs="" er rec stripped=""
+  [ -f "$ef" ] || { echo ""; return 1; }
+  if [ "$#" -gt 0 ]; then
+    refs="$(printf '%s\n' "$@")"
+  else
+    refs="$(cat)"
+  fi
+  refs="$(printf '%s\n' "$refs" | sed '/^$/d' | sort -u)"
+  if [ -z "$refs" ]; then
+    echo "evidence_basis_hash: no evidence refs" >&2
+    echo ""
+    return 1
+  fi
+  while IFS= read -r er; do
+    [ -z "$er" ] && continue
+    rec="$(yq e ".evidence[] | select(.id == \"$er\")" "$ef" 2>/dev/null || true)"
+    if [ -z "$rec" ] || [ "$rec" = "null" ]; then
+      echo "evidence_basis_hash: evidence ref not found: $er" >&2
+      echo ""
+      return 1
+    fi
+    stripped="${stripped}--- evidence_ref: ${er}"$'\n'"${rec}"$'\n'
+  done <<<"$refs"
+  goalspec_hash_stripped "$stripped" "evidence_basis_hash"
+}
+
 goalspec_memory_patch_hash() {
   goalspec_hash_file "$GOALSPEC_ROOT/active/memory-patch.yaml"
 }

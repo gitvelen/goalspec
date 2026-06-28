@@ -53,6 +53,36 @@ case "$src_path" in
   */sess.jsonl) ok "conversation source points at transcript path" ;;
   *) bad "conversation source not traceable: $src_path" ;;
 esac
+bound_path="$(yq e '.intake_session.transcript.path // ""' "$REPO/.goalspec/active/state.yaml")"
+[ "$bound_path" = "$src_path" ] && ok "conversation source uses begin-bound transcript" || bad "bound transcript mismatch: bound=$bound_path source=$src_path"
+
+# A newer same-project transcript appearing after begin must not steal the slice.
+fresh_initialized_repo goalc-62-claude-bound
+export GOALSPEC_TRANSCRIPT_CLAUDE_ROOT="$TESTS_TMP_ROOT/claude-home-bound"
+export GOALSPEC_TRANSCRIPT_CODEX_ROOT="$CODEX_EMPTY"
+pid="$(printf '%s' "$REPO" | tr '/.' '--')"
+oldf="$GOALSPEC_TRANSCRIPT_CLAUDE_ROOT/projects/$pid/old.jsonl"
+newf="$GOALSPEC_TRANSCRIPT_CLAUDE_ROOT/projects/$pid/new.jsonl"
+mkdir -p "$(dirname "$oldf")"
+echo '{"type":"user","timestamp":"2000-01-01T00:00:00.000Z","message":{"role":"user","content":[{"type":"text","text":"seed old"}]}}' > "$oldf"
+"$REPO_GS" intake begin "bind old transcript" >/dev/null
+started_at="$(yq e '.intake_session.started_at' "$REPO/.goalspec/active/state.yaml")"
+cat > "$oldf" <<JSONL
+{"type":"user","timestamp":"$started_at","message":{"role":"user","content":[{"type":"text","text":"old transcript content"}]}}
+JSONL
+cat > "$newf" <<JSONL
+{"type":"user","timestamp":"$started_at","message":{"role":"user","content":[{"type":"text","text":"new transcript should not appear"}]}}
+JSONL
+touch "$newf"
+"$REPO_GS" intake end >/dev/null 2>"$TESTS_TMP_ROOT/enderr-bound"
+conv="$REPO/.goalspec/active/intake-conversation.md"
+grep -q 'old transcript content' "$conv" && ok "begin-bound transcript content used" || bad "begin-bound transcript content missing"
+grep -q 'new transcript should not appear' "$conv" && bad "newer transcript stole intake slice" || ok "newer transcript did not steal intake slice"
+bound_src="$(yq e '.sources[] | select(.type=="conversation") | .path' "$REPO/.goalspec/active/intake-sources.yaml")"
+case "$bound_src" in
+  */old.jsonl) ok "conversation source stayed bound to old transcript" ;;
+  *) bad "conversation source not bound to old transcript: $bound_src" ;;
+esac
 
 # --- case 2: codex provider rebuilds message turns --------------------------
 fresh_initialized_repo goalc-62-codex-slice

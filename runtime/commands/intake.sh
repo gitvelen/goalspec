@@ -29,18 +29,20 @@ case "$sub" in
     fi
     mkdir -p "$GOALSPEC_ROOT/artifacts/intake"
     conv="$GOALSPEC_ROOT/active/intake-conversation.md"
+    started_at="$(goalspec_now)"
+    yq e -i ".intake_session.status = \"collecting\"" "$state_file"
+    yq e -i ".intake_session.started_at = \"$started_at\"" "$state_file"
+    yq e -i ".intake_session.ended_at = null" "$state_file"
+    goalspec_transcript_bind_current >/dev/null 2>&1 || true
     cat > "$conv" <<EOF
 # Intake Conversation
 
-started_at: $(goalspec_now)
+started_at: $started_at
 
 ## Turn 1 - User
 ${*:-}
 EOF
     goalspec_intake_record_conversation_source
-    yq e -i ".intake_session.status = \"collecting\"" "$state_file"
-    yq e -i ".intake_session.started_at = \"$(goalspec_now)\"" "$state_file"
-    yq e -i ".intake_session.ended_at = null" "$state_file"
     goalspec_state_set_status intake_collecting
     echo "intake collecting: $conv"
     echo "next: append begin/end conversation turns to active/intake-conversation.md; then run 'goalspec intake end'"

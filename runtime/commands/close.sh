@@ -92,14 +92,8 @@ if [ "$gate_status" = "not_started" ] || [ "$gate_status" = "failed" ] || [ "$ga
     checkpoint completed_gate
   else
     checkpoint verifying
-    if goalspec_close_package_has_readiness; then
-      if ! readiness_err="$(goalspec_close_validate_readiness_snapshot 2>&1)"; then
-        fail_close "$readiness_err"
-      fi
-    else
-      if ! gate_err="$(goalspec_close_completion_gate 2>&1)"; then
-        fail_close "$gate_err"
-      fi
+    if ! gate_err="$(goalspec_close_validate_live_safety 2>&1)"; then
+      fail_close "$gate_err"
     fi
     if ! verify_err="$(goalspec_delivery_run_final_verification 2>&1)"; then
       fail_close "final verification failed: $verify_err"
