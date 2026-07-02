@@ -13,7 +13,7 @@ fail() { echo "freeze blocked: $*" >&2; exit 1; }
 [ "$(yq e '.status' "$cf")" = "draft" ] || fail "contract is not draft (already frozen?)"
 
 # 1. intake review pass and fresh.
-if [ ! -f "$rf" ] || [ "$(yq e '[.reviews[] | select(.kind == "intake")] | .[-1].result // ""' "$rf")" != "pass" ]; then
+if [ ! -f "$rf" ] || [ "$(goalspec_yq_last_match_field '[.reviews[] | select(.kind == "intake")]' 'result' "$rf")" != "pass" ]; then
   fail "intake review has not passed"
 fi
 if goalspec_review_stale intake; then fail "intake review stale vs current goal.md"; fi
@@ -25,7 +25,7 @@ fi
 if goalspec_approval_stale goal; then fail "goal approval stale (goal.md changed since approval)"; fi
 
 # 3. contract/criteria review pass and fresh.
-if [ "$(yq e '[.reviews[] | select(.kind == "contract")] | .[-1].result // ""' "$rf")" != "pass" ]; then
+if [ "$(goalspec_yq_last_match_field '[.reviews[] | select(.kind == "contract")]' 'result' "$rf")" != "pass" ]; then
   fail "contract review has not passed"
 fi
 if goalspec_review_stale contract; then fail "contract review stale vs current contract.yaml"; fi
@@ -46,9 +46,15 @@ if ! errs="$(goalspec_schema_contract_freeze 2>&1 >/dev/null)"; then
   fail "contract schema/coverage failed"
 fi
 
-# 7. business worktree clean.
-if goalspec_git_business_dirty; then
-  fail "business worktree dirty; commit or stash business changes before freeze"
+# 7. business worktree clean (uncommitted changes only). Committed work since
+# the last freeze's base_revision is legitimate run-loop progress and must NOT
+# block re-freeze after a reopen — that was the "dirty trap" that forced users
+# to hand-edit state.yaml. close (changed_files list) and scope_check still
+# track base_revision..HEAD for their own, different purposes. freeze is not a
+# correctness gate; "all work verdict-verified" is owned by ready_to_close via
+# goalspec_close_readiness_blockers, not by this gate.
+if ! goalspec_git_worktree_clean; then
+  fail "business worktree has uncommitted changes relative to HEAD; commit or stash before freeze"
 fi
 
 # 7.5 reopen recovery requires an explicit, human-reviewed impact analysis.

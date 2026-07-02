@@ -61,6 +61,9 @@ Emit a YAML document with these fields:
   evidence_hash: "<sha256:...>"
   evidence_basis_hash: "<sha256:...>"  # hash of cited evidence_refs only
   verdict: pass | fail | insufficient | blocked | stale | reopen_required
+  # criterion_hash and goal_hash are injected automatically at apply time; you
+  # do NOT emit them. They anchor scoped freshness so a verdict stays valid
+  # across a reopen that doesn't touch its criterion or the goal.
   reason: |-
     Coverage audit:
     - claim: "..."
@@ -194,8 +197,14 @@ EOF
     # Append to verdict.yaml
     goalspec_init_list_file "$vf" verdicts
     tmp="$(mktemp)"
-    # Copy the verdict file with judged_at and the selective evidence basis injected.
-    yq ".judged_at = \"$(goalspec_now)\" | .evidence_basis_hash = \"$cur_basis\"" "$file" > "$tmp"
+    # Copy the verdict file with judged_at, the selective evidence basis, and the
+    # scoped freshness anchors injected. criterion_hash + goal_hash let close-time
+    # freshness be per-criterion (scoped-reopen): a verdict stays fresh across a
+    # reopen that doesn't touch its criterion or the goal. Legacy verdicts that
+    # predate these fields fall back to whole-contract freshness in close.sh.
+    crit_h="$(goalspec_criterion_hash "$crit")"
+    goal_h="$(goalspec_goal_hash)"
+    yq ".judged_at = \"$(goalspec_now)\" | .evidence_basis_hash = \"$cur_basis\" | .criterion_hash = \"$crit_h\" | .goal_hash = \"$goal_h\"" "$file" > "$tmp"
     yq e -i ".verdicts += load(\"$tmp\")" "$vf"
     /bin/rm -f "$tmp"
     # Update evidence_hash snapshot in state to track future stale.
@@ -207,7 +216,14 @@ EOF
     # reopen resets it (Step 05 / Akshy: exit conditions decided before running).
     iter="$(yq e '.run_loop.iteration // 0' "$state_file")"
     iter=$((iter+1))
-    max_iter="$(goalspec_delivery_profile_value '.run_loop.max_iterations' '8')"
+    # Default 40 (was 8): a goal needs >= one verdict per required criterion, so
+    # 8 capped almost any non-trivial first run. trace.sh renders the same value
+    # to the model's loop contract — keep the two defaults identical so the
+    # rendered budget matches the enforced one. Projects with large goals set
+    # their own max_iterations. The mass-re-judge that blew the cap in the v0004
+    # transcript is cured at the root by scoped-reopen (per-criterion freshness),
+    # not by raising this number indefinitely.
+    max_iter="$(goalspec_delivery_profile_value '.run_loop.max_iterations' '40')"
     yq e -i ".run_loop.iteration = $iter | .run_loop.last_at = \"$(goalspec_now)\"" "$state_file"
     echo "verdict applied: $verdict (crit=$crit)"
     if [ "$iter" -ge "$max_iter" ]; then

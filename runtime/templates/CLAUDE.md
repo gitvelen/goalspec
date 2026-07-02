@@ -61,7 +61,7 @@ intake 期间：专注澄清（只问 Goal/Criteria/Constraints/scope/risk/用�
 - `observable result`：Master 可检查的行为或状态。
 - `evidence path`：能证明它的 evidence 要求或运行时边界。
 
-保持 required Criteria 清晰、可据证据判断、与 Goal 相关、最小化。nice-to-have 移入 `optional_criteria`；执行边界移入 Constraints。起草方法论（产品覆盖 / 工程有效性 / 测试覆盖 / 可验收性 四视角，主线为覆盖 goal.md 所有目标分支）见 goalspec skill 的 `references/criteria-writing.md`；角色细则见 `.goalspec/ai/compiler.md`。
+保持 required Criteria 清晰、可据证据判断、与 Goal 相关、最小化。nice-to-have 移入 `optional_criteria`；执行边界移入 Constraints。起草方法论（产品覆盖 / 工程有效性 / 测试覆盖 三视角各读正交输入源独立起草 → 合并 + 覆盖矩阵 → 可验收性 质量门禁 → 组装自审）见 goalspec skill 的 `references/criteria-writing.md`；角色细则见 `.goalspec/ai/compiler.md`。
 
 ## Run / Reopen / Close
 
@@ -69,7 +69,7 @@ intake 期间：专注澄清（只问 Goal/Criteria/Constraints/scope/risk/用�
 
 Subagent 可产出 evidence，但不得宣布最终成功；仅 `evaluated_by: master` 的 verdict 可判定 Criteria。测试通过、Subagent 自述、evidence 文本都不构成收口。
 
-run-loop（即上述 Master/Subagent 循环）在以下 stop condition 任一成立时停下，并报告 status 的 `NEXT_USER_ACTION`，勿盲目重试：所有 required Criteria 拿到 fresh Master pass（loop 目的达成，停止实施）；iteration 触顶被 `capped`（默认 8 轮，需 `/goalspec close` 或 `/goalspec reopen` 重置）；`stalled`（默认连续 3 轮无 verdict/evidence 进展，疑似 spec 缺陷，需 `/goalspec reopen`）；judgment 类 Criteria 阻塞（需人类/Master 裁决，非 Subagent 重试）；或 stale/缺失 prompt。
+run-loop（即上述 Master/Subagent 循环）在以下 stop condition 任一成立时停下，并报告 status 的 `NEXT_USER_ACTION`，勿盲目重试：所有 required Criteria 拿到 fresh Master pass（loop 目的达成，停止实施）；iteration 触顶被 `capped`（默认 40 轮，需 `/goalspec close` 或 `/goalspec reopen` 重置）；`stalled`（默认连续 3 轮无 verdict/evidence 进展，疑似 spec 缺陷，需 `/goalspec reopen`）；judgment 类 Criteria 阻塞（需人类/Master 裁决，非 Subagent 重试）；或 stale/缺失 prompt。
 
 reopen 仅用于冻结的 Goal/Criteria/Constraints 本身错误、不足、矛盾、或与人类新的验收口径冲突；细则见 `.goalspec/ai/core.md`。
 

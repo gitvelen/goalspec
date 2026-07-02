@@ -1,11 +1,19 @@
 # verdict.yaml — Master verdicts against Criteria (enhance.md §12).
 # Only the Master writes verdicts (fresh context, via `goalspec judge apply`).
-# The Subagent may only produce evidence, never a final verdict. Each entry:
+# The Subagent may only produce evidence, never a final verdict.
+#
+# IMPORTANT: `goalspec judge apply <file>` takes a SINGLE verdict object per call
+# (the top-level fields below), NOT this list. This file is the ACCUMULATOR that
+# judge apply appends each applied verdict into (`verdicts: [...]`). Each entry:
 #   - criteria_ref: "CRIT-..."
 #   - evidence_refs: [EV-...]
 #   - contract_hash: "<sha256:...>"
 #   - evidence_hash: "<sha256:...>"          # global evidence.yaml audit hash
 #   - evidence_basis_hash: "<sha256:...>"    # hash of cited evidence_refs only
+#   - criterion_hash: "<sha256:...>"         # injected at apply: this criterion's
+#                                            # content (incl. cited evidence_
+#                                            # requirements); scoped freshness
+#   - goal_hash: "<sha256:...>"              # injected at apply: goal.md snapshot
 #   - verdict: pass | fail | insufficient | blocked | stale | reopen_required
 #   - reason: "..."
 #   - context: fresh

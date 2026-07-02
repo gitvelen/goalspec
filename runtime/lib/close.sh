@@ -1,6 +1,27 @@
 #!/usr/bin/env bash
 # close.sh — close-package helpers and completion gate shared by run/close.
 
+# goalspec_yq_last_match_field <filter_array_expr> <field> <file>
+# Returns .[-1].<field> of a yq filtered array, or "" if the array is empty.
+# mikefarah yq v4 throws "index [-1] out of range, array size is 0" on an empty
+# array BEFORE the // coalesce applies; `select(length > 0)` guards it. Verified
+# non-throwing for both empty and populated inputs.
+goalspec_yq_last_match_field() {
+  local filter="$1" field="$2" file="$3"
+  yq e "(${filter}) | select(length > 0) | .[-1].${field} // \"\"" "$file" 2>/dev/null || true
+}
+
+# goalspec_yq_set_scalar <file> <path> <value>
+# Write an arbitrary string scalar into a YAML file WITHOUT shell/yq
+# interpolation of the value. Values containing quotes, backslashes, CJK
+# punctuation, '#', ':' or newlines round-trip safely via the environment
+# (strenv); the load()-from-temp approach fails on text that isn't itself valid
+# YAML (e.g. a value containing "key: ...").
+goalspec_yq_set_scalar() {
+  local file="$1" path="$2" val="$3"
+  GOALSPEC_YQ_SCALAR="$val" yq e -i "${path} = strenv(GOALSPEC_YQ_SCALAR)" "$file"
+}
+
 goalspec_close_blocking_questions_count() {
   yq e '[.questions[] | select(.blocking == true and .status != "resolved")] | length' "$GOALSPEC_ROOT/active/questions.yaml" 2>/dev/null || echo 0
 }
@@ -11,18 +32,38 @@ goalspec_close_required_criteria_ids() {
 
 goalspec_close_latest_verdict_field() {
   local cid="$1" field="$2" vf="$GOALSPEC_ROOT/active/verdict.yaml"
-  yq e "[.verdicts[] | select(.criteria_ref == \"$cid\")] | .[-1].$field // \"\"" "$vf" 2>/dev/null || true
+  goalspec_yq_last_match_field "[.verdicts[] | select(.criteria_ref == \"$cid\")]" "$field" "$vf"
 }
 
 goalspec_close_criterion_pass_blocker() {
   local cid="$1"
-  local cur_chash cur_basis verdict v_chash v_ehash v_basis evidence_refs er e_chash
+  local cur_chash cur_basis verdict v_chash v_ehash v_basis v_crit v_goal cur_crit cur_goal evidence_refs er e_chash
   cur_chash="$(goalspec_contract_hash)"
   verdict="$(goalspec_close_latest_verdict_field "$cid" verdict)"
   [ "$verdict" = "pass" ] || { echo "no_pass"; return 1; }
-  v_chash="$(goalspec_close_latest_verdict_field "$cid" contract_hash)"
-  [ "$v_chash" = "$cur_chash" ] || { echo "stale_contract"; return 1; }
-  evidence_refs="$(yq e "[.verdicts[] | select(.criteria_ref == \"$cid\")] | .[-1].evidence_refs[]" "$GOALSPEC_ROOT/active/verdict.yaml" 2>/dev/null || true)"
+  v_crit="$(goalspec_close_latest_verdict_field "$cid" criterion_hash)"
+  if [ -n "$v_crit" ] && [ "$v_crit" != "null" ]; then
+    # B1 scoped freshness: the verdict is fresh iff THIS criterion's semantic
+    # content (incl. the evidence_requirements it cites) is unchanged AND the
+    # goal is unchanged. A reopen that touches only OTHER criteria does NOT
+    # stale this verdict — that is the fix for the v0004 transcript's
+    # mass-re-judge → LOOP_CAPPED. Evidence freshness is content-based
+    # (basis_hash below), so the coarse per-evidence contract_hash stamp is
+    # skipped for B1 verdicts.
+    cur_crit="$(goalspec_criterion_hash "$cid" 2>/dev/null || true)"
+    [ -n "$cur_crit" ] && [ "$v_crit" = "$cur_crit" ] \
+      || { echo "stale_criterion"; return 1; }
+    v_goal="$(goalspec_close_latest_verdict_field "$cid" goal_hash)"
+    if [ -n "$v_goal" ] && [ "$v_goal" != "null" ]; then
+      cur_goal="$(goalspec_goal_hash)"
+      [ "$v_goal" = "$cur_goal" ] || { echo "stale_goal"; return 1; }
+    fi
+  else
+    # Legacy verdicts predate criterion_hash. Preserve whole-contract freshness.
+    v_chash="$(goalspec_close_latest_verdict_field "$cid" contract_hash)"
+    [ "$v_chash" = "$cur_chash" ] || { echo "stale_contract"; return 1; }
+  fi
+  evidence_refs="$(yq e "([.verdicts[] | select(.criteria_ref == \"$cid\")]) | select(length > 0) | .[-1].evidence_refs[]" "$GOALSPEC_ROOT/active/verdict.yaml" 2>/dev/null || true)"
   [ -n "$evidence_refs" ] || { echo "no_evidence_refs"; return 1; }
   while IFS= read -r er; do
     [ -z "$er" ] && continue
@@ -30,8 +71,12 @@ goalspec_close_criterion_pass_blocker() {
       echo "missing_$er"
       return 1
     fi
-    e_chash="$(yq e ".evidence[] | select(.id == \"$er\") | .contract_hash // \"\"" "$GOALSPEC_ROOT/active/evidence.yaml" 2>/dev/null || true)"
-    [ "$e_chash" = "$cur_chash" ] || { echo "stale_evidence_contract_$er"; return 1; }
+    # B1 verdicts rely on basis_hash for evidence freshness; legacy verdicts keep
+    # the strict per-evidence contract_hash stamp check.
+    if [ -z "$v_crit" ] || [ "$v_crit" = "null" ]; then
+      e_chash="$(yq e ".evidence[] | select(.id == \"$er\") | .contract_hash // \"\"" "$GOALSPEC_ROOT/active/evidence.yaml" 2>/dev/null || true)"
+      [ "$e_chash" = "$cur_chash" ] || { echo "stale_evidence_contract_$er"; return 1; }
+    fi
   done <<<"$evidence_refs"
   v_basis="$(goalspec_close_latest_verdict_field "$cid" evidence_basis_hash)"
   if [ -n "$v_basis" ] && [ "$v_basis" != "null" ]; then
@@ -207,7 +252,7 @@ YML
   while IFS= read -r cid; do
     [ -z "$cid" ] && continue
     verdict="$(goalspec_close_latest_verdict_field "$cid" verdict)"
-    refs="$(yq e "[.verdicts[] | select(.criteria_ref == \"$cid\")] | .[-1].evidence_refs // []" "$GOALSPEC_ROOT/active/verdict.yaml" 2>/dev/null || echo '[]')"
+    refs="$(yq e "([.verdicts[] | select(.criteria_ref == \"$cid\")]) | select(length > 0) | .[-1].evidence_refs // []" "$GOALSPEC_ROOT/active/verdict.yaml" 2>/dev/null || echo '[]')"
     {
       printf '  - criteria_ref: "%s"\n' "$cid"
       printf '    verdict: "%s"\n' "$verdict"

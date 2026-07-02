@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# GOALC #36: /goalspec source may only add material to an OPEN intake window.
-# Regression for the start/end intent boundary: source must not succeed before
-# start (and must not bootstrap a goal) nor after end.
+# GOALC #36: /goalspec source may not bootstrap a goal before start, and is
+# locked once the contract is FROZEN. Between end and freeze (spec_drafting)
+# provenance can still grow — the hard lock is freeze, not end. The intake
+# window itself closes at end (irreversible); only the source set may grow
+# pre-freeze.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 fresh_initialized_repo goalc-36-source-window
@@ -39,15 +41,18 @@ fi
   && ok "end closes window" \
   || bad "end did not close window"
 
-# --- source AFTER end must fail and must not mutate the closed window ---
+# --- source AFTER end but BEFORE freeze now SUCCEEDS: pre-freeze provenance
+# can still grow (the v0004 transcript needed design/test docs sourced mid-
+# compile, after intake end). The hard lock is freeze, not end. The intake
+# window itself stays closed (end is irreversible) — only the source set grew. ---
 echo "late" > "$REPO/late.txt"
 if "$REPO_GS" source late.txt >/dev/null 2>"$TESTS_TMP_ROOT/src-after.err"; then
-  bad "source accepted after end"
+  ok "source accepted after end (pre-freeze)"
 else
-  ok "source rejected after end"
+  bad "source rejected after end (pre-freeze): $(cat "$TESTS_TMP_ROOT/src-after.err")"
 fi
 [ "$(yq e '.intake_session.status' "$REPO/.goalspec/active/state.yaml")" = "closed" ] \
-  && ok "source-after-end left window closed" \
-  || bad "source-after-end mutated window state"
+  && ok "source-after-end left intake window closed" \
+  || bad "source-after-end mutated intake window state"
 
 [ "$TESTS_FAIL" -eq 0 ]

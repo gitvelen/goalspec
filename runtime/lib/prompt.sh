@@ -10,7 +10,7 @@ goalspec_prompt_record_frozen_hashes() {
   local goal_hash contract_hash confirmed_at generated_at
   goal_hash="$(goalspec_goal_hash)"
   contract_hash="$(goalspec_contract_hash)"
-  confirmed_at="$(yq e '[.approvals[] | select(.kind == "contract")] | .[-1].approved_at // ""' "$sf")"
+  confirmed_at="$(goalspec_yq_last_match_field '[.approvals[] | select(.kind == "contract")]' 'approved_at' "$sf")"
   generated_at="$(goalspec_now)"
 
   yq e -i ".goal_hash = \"$goal_hash\"" "$sf"

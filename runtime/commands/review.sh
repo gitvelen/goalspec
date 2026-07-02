@@ -51,8 +51,16 @@ You are a fresh-context reviewer performing a CONTRACT/CRITERIA review. Read ONL
   - .goalspec/project/*.yaml
 
 Verify:
-  - every core goal scenario is covered by criteria.
-  - every must_not_happen becomes a negative criterion.
+  - coverage — do NOT judge vaguely. Reconstruct a goal_branch × quality-dimension
+    matrix and check every cell (the highest-value check; schema.sh cannot do it):
+    * each Intent scenario and each Narrative flow (normal flow + every failure
+      path + every state change) is covered by ≥1 criterion;
+    * every must_not_happen entry maps to a dedicated negative criterion (not
+      merged, not omitted);
+    * every Risk Scan conclusion maps to a criterion or an explicit constraint;
+    * every Success Model field (user_visible_success / system_observable_success
+      / minimum_acceptable_result / final_completion_signal) is covered.
+    List any uncovered branch as a blocking finding.
   - out_of_scope is reflected as hard constraints.
   - each criterion is decidable and not too weak/strong/vague.
   - each criterion's evidence_requirement_refs can prove that criterion.
@@ -60,8 +68,9 @@ Verify:
     allowed_paths are authorized impact domains, not exact file predictions;
     forbidden_paths are the precise "must not touch" set.
   - locked regressions are injected as required evidence.
-  - there is a final criterion.
   - no blocking compile question.
+  (Note: presence of a final criterion is enforced by schema.sh at freeze, so it
+  is not re-checked here.)
 
 Emit a YAML document with:
   kind: contract
@@ -137,7 +146,7 @@ EOF
     yq -i ".target_hash = \"$target_hash\"" "$tmp"
     yq -i ".judged_at = \"$(goalspec_now)\"" "$tmp"
     yq -i ".blocking_questions = ${bjson}" "$tmp"
-    yq -i ".notes = \"$notes\"" "$tmp"
+    goalspec_yq_set_scalar "$tmp" '.notes' "$notes"
     yq e -i ".reviews += load(\"$tmp\")" "$rf"
     /bin/rm -f "$tmp"
     echo "review applied: kind=$kind result=$result target_hash=$target_hash"

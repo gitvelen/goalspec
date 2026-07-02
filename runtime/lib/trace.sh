@@ -109,8 +109,8 @@ goalspec_harness_emit_candidate() {
     v="$(goalspec_close_latest_verdict_field "$cid" verdict)"
     case "$v" in pass|"") ;; *) failing="${failing}${cid}|";; esac
   done <<<"$(goalspec_close_required_criteria_ids)"
-  last_crit="$(yq e '.traces[-1].criterion_ref // ""' "$tf" 2>/dev/null || true)"
-  last_why="$(yq e '.traces[-1].stop_check.why // ""' "$tf" 2>/dev/null || true)"
+  last_crit="$(goalspec_yq_last_match_field '.traces' 'criterion_ref' "$tf")"
+  last_why="$(goalspec_yq_last_match_field '.traces' 'stop_check.why' "$tf")"
   if [ -n "$failing" ]; then
     failing_json="$(printf '%s' "$failing" | tr '|' '\n' | grep -v '^$' | sed 's/.*/"&"/' | paste -sd, - | sed 's/^/[/; s/$/]/')"
   else
@@ -145,7 +145,7 @@ goalspec_loop_contract_render() {
   goal="$(awk '/^## .*Intent/ { in_intent=1; next } /^## / && in_intent { exit } in_intent && NF { print; exit }' "$gf" 2>/dev/null || echo "")"
   scope="$(goalspec_scope_allowed_patterns | paste -sd, -)"
   tools="$(yq e '(.commands.test // []) + (.commands.build // []) + (.commands.lint // []) + (.commands.typecheck // []) + (.commands.audit // []) + (.commands.sast // []) | join(", ")' "$pf" 2>/dev/null || echo "")"
-  max_iter="$(goalspec_delivery_profile_value '.run_loop.max_iterations' '8')"
+  max_iter="$(goalspec_delivery_profile_value '.run_loop.max_iterations' '40')"
   stall_thresh="$(goalspec_delivery_profile_value '.run_loop.stall_threshold' '3')"
   iter="$(yq e '.run_loop.iteration // 0' "$sf")"
   last_outcome="$(yq e '.run_loop.last_outcome // "null"' "$sf")"

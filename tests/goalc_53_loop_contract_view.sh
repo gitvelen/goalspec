@@ -29,7 +29,7 @@ done
 [ -z "$miss" ] && ok "all 11 loop-contract keys present" || bad "missing keys: $miss"
 
 # stop reflects profile thresholds.
-grep -q "max_iterations=8" "$P53/status.txt" && ok "stop shows max_iterations" || bad "stop missing max_iterations"
+grep -q "max_iterations=40" "$P53/status.txt" && ok "stop shows max_iterations" || bad "stop missing max_iterations"
 grep -q "stall_threshold=3" "$P53/status.txt" && ok "stop shows stall_threshold" || bad "stop missing stall_threshold"
 
 # scope reflects the contract allowed_paths.

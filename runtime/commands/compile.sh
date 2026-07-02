@@ -10,7 +10,7 @@ status="$(yq e '.status' "$state_file")"
 rf="$GOALSPEC_ROOT/active/reviews.yaml"
 intake_pass=0
 if [ -f "$rf" ]; then
-  last="$(yq e '[.reviews[] | select(.kind == "intake")] | .[-1].result // ""' "$rf")"
+  last="$(goalspec_yq_last_match_field '[.reviews[] | select(.kind == "intake")]' 'result' "$rf")"
   [ "$last" = "pass" ] && intake_pass=1
 fi
 if [ "$intake_pass" -ne 1 ]; then

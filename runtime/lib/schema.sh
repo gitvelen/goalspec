@@ -55,7 +55,12 @@ goalspec_schema_contract_freeze() {
       echo "criteria ${id}: missing statement" >&2
       errs=$((errs+1))
     fi
-    if printf '%s' "$stmt" | grep -Eiq '(合理|良好|优化|正确|完整|充分支持|reasonable|good|optimized|correct|complete|proper|properly)'; then
+    # CJK vague terms have no reliable ERE word boundary in Chinese text, so
+    # they are matched as substrings (unchanged coverage). English terms are
+    # anchored on ASCII non-letter boundaries so 'incorrect', 'property',
+    # 'completeness' do not trip 'correct'/'proper'/'complete'. (-i case-folds
+    # the bracket expression too, so [^a-z] effectively matches "non-letter".)
+    if printf '%s' "$stmt" | grep -Eiq '(合理|良好|优化|正确|完整|充分支持)|(^|[^a-z])(reasonable|good|optimized|correct|complete|proper|properly)([^a-z]|$)'; then
       echo "criteria ${id}: vague statement must be rewritten before freeze" >&2
       errs=$((errs+1))
     fi

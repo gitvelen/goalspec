@@ -54,7 +54,24 @@ EOF
     # start/end intent boundary (see goalspec_enhance.md §9, §17).
     [ -f "$state_file" ] || { echo "goalspec intake add-source: no active goal. Run 'goalspec start' to open an intake window first." >&2; exit 1; }
     cur="$(yq e '.intake_session.status // "not_started"' "$state_file")"
-    [ "$cur" = "collecting" ] || { echo "goalspec intake add-source: intake window is not open (status=$cur). Run 'goalspec start' first; '/goalspec end' closes the window." >&2; exit 1; }
+    goal_status="$(yq e '.status // "no_goal"' "$state_file")"
+    # Sources may join while the contract is still draft — either during the
+    # open intake window (collecting) OR before freeze (spec_drafting /
+    # awaiting_human_confirmation). Provenance can still grow until the contract
+    # is frozen; goalspec_intake_package_hash binds the final source set, and
+    # compile.sh:36-45 enforces intake-package approval freshness at compile
+    # time, so a late add is caught (re-approve) before it can freeze. After
+    # freeze the source set is locked; further adds require a reopen. This fixes
+    # the v0004 transcript's "intake window hard-closes" gap where design/test
+    # docs discovered mid-compile could not be formally sourced.
+    case "$cur:$goal_status" in
+      collecting:*) : ;;
+      *:spec_drafting|*:awaiting_human_confirmation) : ;;
+      *)
+        echo "goalspec intake add-source: contract basis is locked (intake=$cur, goal=$goal_status). Sources may join only before freeze; run '/goalspec reopen' to add sources to a frozen goal." >&2
+        exit 1
+        ;;
+    esac
     for src in "$@"; do
       goalspec_intake_add_source "$src"
       echo "source added: $src"

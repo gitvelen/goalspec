@@ -82,5 +82,5 @@ delivery:
 # from capped — capped means the budget is exhausted (close or raise it), stalled
 # means the loop is spinning on an unsolvable spec defect (reopen). Default 3.
 run_loop:
-  max_iterations: 8
+  max_iterations: 40
   stall_threshold: 3

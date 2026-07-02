@@ -107,6 +107,39 @@ goalspec_criteria_hash() {
   goalspec_hash_stripped "$stripped" "criteria_hash"
 }
 
+# Per-criterion content hash — the freshness basis for ONE criterion's verdict
+# (scoped-reopen: a verdict stays fresh across a reopen that doesn't touch this
+# criterion). Covers the criterion's semantic fields PLUS the content of every
+# evidence_requirement it cites, so weakening a cited ER's runtime_boundary or
+# statement — without changing IDs, criteria, or evidence records — still stales
+# the verdict (closes the ER-content-drift hole that dropping the whole-contract
+# hash would otherwise open). Cosmetic fields (workunit, priority) are excluded.
+# Each field uses `// <default>` so absent and explicit-default hash identically.
+# (yq v4 rejects {key:.val} object literals — extract per field, like above.)
+goalspec_criterion_hash() {
+  local cid="$1" cf="$GOALSPEC_ROOT/active/contract.yaml"
+  [ -f "$cf" ] || { echo ""; return 1; }
+  local stripped erefs er er_rec
+  stripped="$(
+    yq e ".criteria[] | select(.id == \"$cid\") | .id // \"\"" "$cf" 2>/dev/null
+    yq e ".criteria[] | select(.id == \"$cid\") | .statement // \"\"" "$cf" 2>/dev/null
+    yq e ".criteria[] | select(.id == \"$cid\") | (.evidence_requirement_refs // [])" "$cf" 2>/dev/null
+    yq e ".criteria[] | select(.id == \"$cid\") | (.kind // \"machine\")" "$cf" 2>/dev/null
+    yq e ".criteria[] | select(.id == \"$cid\") | (.required_for_completion // true)" "$cf" 2>/dev/null
+    yq e ".criteria[] | select(.id == \"$cid\") | (.must_not // [])" "$cf" 2>/dev/null
+    yq e ".criteria[] | select(.id == \"$cid\") | (.final // false)" "$cf" 2>/dev/null
+    erefs="$(yq e ".criteria[] | select(.id == \"$cid\") | (.evidence_requirement_refs // [])[]" "$cf" 2>/dev/null)"
+    if [ -n "$erefs" ]; then
+      while IFS= read -r er; do
+        [ -z "$er" ] && continue
+        er_rec="$(yq e ".evidence_requirements[] | select(.id == \"$er\")" "$cf" 2>/dev/null || true)"
+        [ -n "$er_rec" ] && [ "$er_rec" != "null" ] && printf '%s\n' "$er_rec"
+      done <<<"$erefs"
+    fi
+  )"
+  goalspec_hash_stripped "$stripped" "criterion_hash[$cid]"
+}
+
 # Hash of the constraints content (constraints + allowed_paths + forbidden_paths)
 # as fields of contract.yaml. Parallel to goalspec_criteria_hash.
 goalspec_constraints_hash() {
@@ -179,7 +212,8 @@ goalspec_constraint_suggestions_hash() {
 goalspec_intake_package_hash() {
   goalspec_hash_files \
     "$GOALSPEC_ROOT/active/intake-capture.md" \
-    "$GOALSPEC_ROOT/active/constraint-suggestions.yaml"
+    "$GOALSPEC_ROOT/active/constraint-suggestions.yaml" \
+    "$GOALSPEC_ROOT/active/intake-sources.yaml"
 }
 
 goalspec_verdict_hash() {

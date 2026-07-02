@@ -111,7 +111,22 @@ if [ "$gate_status" = "not_started" ] || [ "$gate_status" = "failed" ] || [ "$ga
     fi
     [ -n "$smoke_out" ] && smoke_summary="$(printf '%s\n' "$smoke_out" | tail -1)"
     if ! changed_err="$(goalspec_close_recheck_changed_files_hash 2>&1)"; then
-      fail_close "$changed_err"
+      # On resume (state was `closing`), a drifted changed_files_hash is almost
+      # always caused by final verification itself writing a test/build artifact
+      # during this close attempt. Regenerate the package in place (which
+      # re-fingerprints the post-verification steady state) and re-check, rather
+      # than forcing the user to hand-edit state.yaml back to ready_to_run.
+      # First-time close still fails strict so the user gitignores the artifact
+      # (see the hint in goalspec_close_recheck_changed_files_hash). Live safety
+      # already (re-)ran above at line ~95 before this check.
+      if [ "$is_resume" = "true" ]; then
+        goalspec_close_write_package
+        if ! changed_err="$(goalspec_close_recheck_changed_files_hash 2>&1)"; then
+          fail_close "$changed_err"
+        fi
+      else
+        fail_close "$changed_err"
+      fi
     fi
     if ! secret_hits="$(goalspec_delivery_scan_secrets 2>&1)"; then
       fail_close "sensitive, large, or disallowed file detected: $secret_hits"
