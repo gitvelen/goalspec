@@ -21,6 +21,8 @@ grep -q 'must_not_happen' "$CW" && ok "criteria-writing maps must_not_happen -> 
 grep -q 'final: true' "$CW" && ok "criteria-writing maps final_completion_signal -> final" || bad "criteria-writing missing final rule"
 grep -q '好坏示例' "$CW"   && ok "criteria-writing has good/bad examples"      || bad "criteria-writing missing examples"
 grep -q 'Bad' "$CW" && grep -q 'Good' "$CW" && ok "criteria-writing shows bad vs good" || bad "criteria-writing missing bad/good contrast"
+grep -q '覆盖矩阵' "$CW"   && ok "criteria-writing has coverage matrix"        || bad "criteria-writing missing coverage matrix"
+grep -q '正交输入源' "$CW" && ok "criteria-writing has orthogonal input sources" || bad "criteria-writing missing orthogonal input sources"
 
 # 2. compiler.md no longer relies on the old single-line hint; it points to the
 #    skill and names the four lenses inline (works even if the skill is absent).
@@ -29,6 +31,7 @@ grep -q '产品覆盖' "$COMP" && ok "compiler.md inlines product-coverage lens"
 grep -q '工程有效性' "$COMP" && ok "compiler.md inlines engineering lens"      || bad "compiler.md missing engineering lens"
 grep -q '测试覆盖' "$COMP" && ok "compiler.md inlines testing lens"            || bad "compiler.md missing testing lens"
 grep -q '可验收性' "$COMP" && ok "compiler.md inlines verifiability lens"      || bad "compiler.md missing verifiability lens"
+grep -q '覆盖矩阵' "$COMP" && ok "compiler.md inlines coverage-matrix step"    || bad "compiler.md missing coverage-matrix step"
 
 # 3. SKILL.md surfaces the methodology at the compile/Criteria-drafting moment.
 grep -q 'references/criteria-writing.md' "$SKILL" && ok "SKILL.md points to criteria-writing" || bad "SKILL.md missing criteria-writing pointer"

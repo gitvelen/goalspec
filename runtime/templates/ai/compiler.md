@@ -14,11 +14,11 @@ Criteria 要求：
 - 不得把实现步骤、技术选型、内部任务或文件路径写成成功标准。
 - 若 goal.md 按 `### Workunit:` 分组，criterion 可填可选 `workunit: <name>` 字段做追溯（仅映射到 goal.md 的分组，不参与执行顺序）；起草四视角第 1 步的 `goal_branch → criterion` 追溯表可用 workunit 作为结构化锚点。
 
-起草 Criteria 必须按四视角结构化进行，完整步骤见 goalspec skill 的 `references/criteria-writing.md`：
-1. **产品覆盖（主线）**：扫描 goal.md 所有目标分支（Intent / Narrative / Success Model 各字段 / Scope / Risk Scan），产出 `goal_branch → criterion` 追溯表，每个 `must_not_happen` 落成负向 criterion，`final_completion_signal` 落成 `final: true`；无漏分支、无 orphan。
-2. **工程有效性**：每条原子化、相关、最小化、无实现泄漏、`kind` 正确、与 constraints 一致。
-3. **测试覆盖**：每个分支按需覆盖正常/变体/负向/边界/权限安全/数据生命周期/集成/失败降级/非功能/非目标，逐项落成有可观察结果的 criterion。
-4. **可验收性 / loop-safety**：每条可被 Master 从 evidence 判成清晰 pass/fail、能让 run-loop 收敛（否则重写）。
+起草 Criteria 必须按四步结构化进行，完整步骤见 goalspec skill 的 `references/criteria-writing.md`：
+1. **三视角并行独立起草**（各读正交输入源，互不锚定）：**产品覆盖** 读 goal.md 功能分支（Intent / Narrative / Success Model 各字段 / Scope / Risk Scan），产出 `goal_branch → criterion` 追溯表，每个 `must_not_happen` 落成负向 criterion，`final_completion_signal` 落成 `final: true`；**测试覆盖** 独立从 Success Model × 质量维度矩阵（正常/变体/负向/边界/权限安全/数据生命周期/集成/失败降级/非功能/非目标）推 criterion，不看产品视角的追溯表；**工程有效性** 从 `.goalspec/project/*.yaml` 的 constraints + project memory 反向推 constraint 一致性、隐含技术契约、跨模块契约、kind 决策（不从 goal.md 功能分支重复产出）。
+2. **合并 + 覆盖矩阵**：三来源 union、去重、冲突解决；产出 `goal_branch × 质量维度` 覆盖矩阵，给出可计算的覆盖率；无漏分支（尤其 `must_not_happen` 与 Risk Scan 每条）、无 orphan。
+3. **质量门禁（工程约束 + 可验收性 / loop-safety）**：每条原子化（拆 AND/OR）、无实现泄漏、`kind` 正确、evidence 可解析且强度匹配、可判 fail、能让 run-loop 收敛（否则重写）。
+4. **组装自审**：填 contract.yaml，用覆盖矩阵反向核对，疑问写入 questions.yaml。
 
 workunit 仅是 goal.md 的文档归类与 criteria 追溯锚点，绝不构成实施顺序——Goalspec 是 goal-driven loop，Master 按证据选 criterion 驱动，不按 workunit 依次执行。
 
