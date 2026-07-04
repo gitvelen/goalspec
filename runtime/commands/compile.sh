@@ -88,6 +88,12 @@ The compiler agent should now edit $cf to fill in:
     forbidden_paths for the precise "must not touch" set.
   - required_regressions (from project/regression-suite.yaml)
 
-When done: 'goalspec review prompt contract', apply a passing contract review,
-then 'goalspec approve contract' and 'goalspec freeze'.
+When done: run 'goalspec validate contract' and resolve every error BEFORE
+requesting review (this catches schema issues — missing/Unresolving
+evidence_requirement_refs, missing final criterion, vague terms, implementation
+leakage, invalid kind, empty allowed_paths — at draft time rather than at
+freeze). Note: AND/OR compound statements are caught by the contract REVIEW
+agent's coverage matrix, not by validate — still split them when drafting.
+Then 'goalspec review prompt contract', apply a passing contract review,
+'goalspec approve contract' and 'goalspec freeze'.
 EOF

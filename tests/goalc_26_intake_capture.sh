@@ -58,6 +58,7 @@ goal_constraints: []
 open_questions: []
 discarded_candidates: []
 YML
+stamp_intake_capture_review_pass
 "$REPO_GS" approve intake-package >/dev/null
 "$REPO_GS" intake apply-suggestions >/dev/null
 "$REPO_GS" compile >/dev/null \

@@ -81,7 +81,7 @@ goalspec_stale_constraint_suggestions_applied() {
 }
 
 # Returns 0 (true) if a stored review of given kind is stale.
-# kinds: intake, contract, criteria
+# kinds: intake, contract, criteria, intake-capture
 goalspec_review_stale() {
   local kind="$1"
   local rf="$GOALSPEC_ROOT/active/reviews.yaml"
@@ -90,11 +90,11 @@ goalspec_review_stale() {
   target_hash="$(yq e ".reviews[] | select(.kind == \"$kind\") | .target_hash // \"\"" "$rf" | tail -1)"
   [ -z "$target_hash" ] && return 0
   local cur
-  if [ "$kind" = "intake" ]; then
-    cur="$(goalspec_goal_hash)"
-  else
-    cur="$(goalspec_contract_hash)"
-  fi
+  case "$kind" in
+    intake) cur="$(goalspec_goal_hash)" ;;
+    intake-capture) cur="$(goalspec_intake_capture_hash)" ;;
+    *) cur="$(goalspec_contract_hash)" ;;
+  esac
   [ "$target_hash" != "$cur" ]
 }
 

@@ -19,6 +19,7 @@ Criteria 要求：
 2. **合并 + 覆盖矩阵**：三来源 union、去重、冲突解决；产出 `goal_branch × 质量维度` 覆盖矩阵，给出可计算的覆盖率；无漏分支（尤其 `must_not_happen` 与 Risk Scan 每条）、无 orphan。
 3. **质量门禁（工程约束 + 可验收性 / loop-safety）**：每条原子化（拆 AND/OR）、无实现泄漏、`kind` 正确、evidence 可解析且强度匹配、可判 fail、能让 run-loop 收敛（否则重写）。
 4. **组装自审**：填 contract.yaml，用覆盖矩阵反向核对，疑问写入 questions.yaml。
+5. **draft schema 自检**：发起 contract review 前，必须运行 `goalspec validate contract` 并把所有报错清零。它在 freeze 之前就跑 `goalspec_schema_contract_freeze`（漏/悬空 `evidence_requirement_refs`、漏 `final: true`、模糊词、实现泄漏、kind 非法、空 `allowed_paths`），让这类低级错误在 draft 当场暴露，而不是拖到 freeze 才连环触发 stale 重审。注意：AND/OR 复合断言由 contract review 的覆盖矩阵抓，validate 不抓——起草时仍应主动拆分。
 
 workunit 仅是 goal.md 的文档归类与 criteria 追溯锚点，绝不构成实施顺序——Goalspec 是 goal-driven loop，Master 按证据选 criterion 驱动，不按 workunit 依次执行。
 

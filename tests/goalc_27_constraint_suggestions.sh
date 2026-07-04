@@ -57,6 +57,7 @@ else
   ok "apply-suggestions blocks without intake-package approval"
 fi
 
+stamp_intake_capture_review_pass
 "$REPO_GS" approve intake-package >/dev/null
 "$REPO_GS" intake apply-suggestions >/dev/null \
   && ok "apply-suggestions succeeds after package approval" \

@@ -35,7 +35,7 @@ Goalspec 受管工作前，运行或读取：
 | `/goalspec start <intent>` | 先运行 status，再仅从 `no_goal` 或 `closed` 执行 `.goalspec/goalspec start "<intent>"`。 | intake 已开启；勿实施。 |
 | `/goalspec source <path>` | `.goalspec/goalspec source <path>` | source 已添加；勿关闭 intake。 |
 | `/goalspec end` | `.goalspec/goalspec end` | 起草并展示 review package；等阶段化确认。 |
-| `确认并应用 intake package` | `.goalspec/goalspec approve intake-package`，再 `.goalspec/goalspec intake apply-suggestions` | 应用已确认的建议后停止。 |
+| `确认并应用 intake package` | 先 `.goalspec/goalspec review prompt intake-capture`（hot-context，读对话核对 capture 覆盖度+provenance）并 `review apply` 通过；再 `.goalspec/goalspec approve intake-package`（硬门禁：无 passing intake-capture review 则拒绝）、`.goalspec/goalspec intake apply-suggestions` | 应用已确认的建议后停止。 |
 | `确认并冻结契约` | 仅运行 status 所要求的 review、approve、freeze 命令（针对已 review 的 Goal/Criteria/Constraints）。 | 生成 `.goalspec/active/goal-driven-prompt.md` 后停止；勿实施。 |
 | `/goalspec run` | `.goalspec/goalspec run` | 若允许，读取 prompt 后进入 Master/Subagent 自主 loop，直到所有 required Criteria 拿到 fresh Master pass、或触发 stop condition；全 pass 后再次 run 生成 close package 并停止。 |
 | `/goalspec close` | `.goalspec/goalspec close` | 报告成功或 CLI blocker；绝不手动替代 close。 |
@@ -50,6 +50,8 @@ Goalspec 受管工作前，运行或读取：
 intake 期间：专注澄清（只问 Goal/Criteria/Constraints/scope/risk/用户可见行为相关问题）、添加已批准 source；不要手动记录会话——`active/intake-conversation.md` 由 `goalspec intake end` 从 session transcript 自动切片生成。不得冻结工件、生成 Goal-Driven Prompt、修改业务代码、或自行判定 intake 已结束。
 
 `/goalspec end` 后：从 `.goalspec/active/intake-conversation.md`、`.goalspec/active/intake-sources.yaml`、已批准 source 快照、`.goalspec/active/intake-capture.md`、`.goalspec/active/constraint-suggestions.yaml` 生成并展示精简 review package（七项明细见 `.goalspec/ai/intake.md`），等阶段化确认。
+
+`approve intake-package` 前必须先有一条 passing 的 **intake-capture review**（`goalspec review prompt intake-capture` → `review apply`）。这是唯一读对话核对 capture 是否覆盖用户意图的门禁（intake/contract review 是 fresh-context 形式审查，故意不读对话）。capture 改动后该 review 失效，需重跑。
 
 写 `.goalspec/project/**` 前需 `确认并应用 intake package`；冻结已 review 的 Goal/Criteria/Constraints 前需 `确认并冻结契约`。确认永远不等于开始实施。
 

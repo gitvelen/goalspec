@@ -16,6 +16,7 @@ git -C "$REPO" add design_a.txt design_b.txt design_c.txt && git -C "$REPO" comm
 "$REPO_GS" source design_a.txt >/dev/null
 "$REPO_GS" end >/dev/null
 approve_intake_and_goal
+stamp_intake_capture_review_pass
 "$REPO_GS" approve intake-package >/dev/null
 ok "intake-package approved with source set {A}"
 
