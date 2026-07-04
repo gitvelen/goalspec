@@ -32,6 +32,7 @@ case "$sub" in
   persistence: memory
   completion_level: integrated_runtime
   reproducible: true
+  # sensor_scope: artifact_existence_only  # required iff reproducible:true AND (completion_level=manual_observation OR runtime_boundary=manual)
   produced_by: subagent
   produced_at: "$(goalspec_now)"
   residual_risk:

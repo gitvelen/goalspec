@@ -165,6 +165,23 @@ goalspec_schema_evidence_entry() {
       echo "evidence $id: reproducible=true requires a non-empty command" >&2
       return 1
     fi
+    # J2: judgment evidence must not silently masquerade as fully
+    # sensor-verifiable. The sensor re-runs .command and checks exit 0 — it can
+    # confirm an artifact exists, but never that a human visual/qualitative call
+    # holds. A manual-observation entry marked reproducible MUST declare
+    # sensor_scope to bound what the sensor actually proves, forcing the author
+    # to acknowledge the unverifiable judgment portion instead of letting an
+    # unrelated 'ls' command lend it an objective aura (velentrade P2-002).
+    local cl rb ss
+    cl="$(yq e ".evidence[] | select(.id == \"$id\") | .completion_level // \"\"" "$ef")"
+    rb="$(yq e ".evidence[] | select(.id == \"$id\") | .runtime_boundary // \"\"" "$ef")"
+    if [ "$cl" = "manual_observation" ] || [ "$rb" = "manual" ]; then
+      ss="$(yq e ".evidence[] | select(.id == \"$id\") | .sensor_scope // \"\"" "$ef")"
+      if [ -z "$ss" ] || [ "$ss" = "null" ]; then
+        echo "evidence $id: reproducible=true with manual observation requires a 'sensor_scope' field (e.g. 'artifact_existence_only') to bound what the sensor verifies — the judgment itself is not sensor-verifiable" >&2
+        return 1
+      fi
+    fi
   fi
   return 0
 }

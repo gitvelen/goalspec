@@ -482,9 +482,25 @@ goalspec_close_apply_memory_patch() {
 }
 
 goalspec_close_next_history_version() {
-  local latest_v next_n
-  latest_v="$(yq e '.versions | length' "$GOALSPEC_ROOT/project/versions.yaml" 2>/dev/null || echo 0)"
-  next_n=$((latest_v+1))
+  local vf="$GOALSPEC_ROOT/project/versions.yaml" next_n
+  if [ -f "$vf" ] && [ "$(yq e '.versions | length' "$vf" 2>/dev/null || echo 0)" -gt 0 ]; then
+    next_n=$(( $(yq e '.versions | length' "$vf") + 1 ))
+  else
+    # V1: versions.yaml missing/empty — infer the next number from history/ so a
+    # missing versions.yaml does not silently reset the archive to v0001 and
+    # break continuity with prior goals. Warn so a human sees the inference.
+    local max_n=0 dd n
+    for dd in "$GOALSPEC_ROOT/history"/*; do
+      [ -d "$dd" ] || continue
+      n="$(basename "$dd")"
+      n="${n#v}"
+      [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -gt "$max_n" ] && max_n="$n"
+    done
+    next_n=$((max_n+1))
+    if [ "$max_n" -gt 0 ]; then
+      echo "version-inference: versions.yaml missing/empty; inferred next=v$(printf '%04d' "$next_n") from history/ (max existing=v$(printf '%04d' "$max_n"))" >&2
+    fi
+  fi
   printf 'v%04d\n' "$next_n"
 }
 
