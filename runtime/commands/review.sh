@@ -37,6 +37,59 @@ Emit a YAML document to stdout with:
     <your reasoning>
 EOF
         ;;
+      intake-capture)
+        cf="$GOALSPEC_ROOT/active/intake-capture.md"
+        sf="$GOALSPEC_ROOT/active/constraint-suggestions.yaml"
+        cnvf="$GOALSPEC_ROOT/active/intake-conversation.md"
+        [ -f "$cf" ] || { echo "no intake-capture.md to review" >&2; exit 1; }
+        [ -f "$cnvf" ] || { echo "no intake-conversation.md to review against" >&2; exit 1; }
+        cat <<EOF
+# Intake-capture review prompt (hot-context, adversarial)
+
+Unlike the intake/contract reviews (fresh-context, form-only), THIS review is
+the ONLY gate that checks whether the capture covers what the user ACTUALLY said.
+It is hot-context on purpose: intent fidelity cannot be checked without reading
+the conversation. Read:
+  - .goalspec/active/intake-conversation.md   (ground truth of user intent)
+  - .goalspec/active/intake-capture.md        (the digest under review)
+  - .goalspec/active/constraint-suggestions.yaml (if present)
+
+Stance: ASSUME the capture is incomplete or has drifted. Actively hunt for gaps.
+Verify concretely (do NOT judge vaguely):
+  1. coverage — every user-stated requirement, constraint, correction, and
+     reversal in the conversation is reflected somewhere in the capture
+     (Goal Candidate / User-visible Success / Confirmed Decisions / Scope /
+     Excluded), or is explicitly marked Excluded with a reason. List each user
+     point you cannot locate in the capture as a blocking finding.
+  2. provenance — every entry under "Confirmed Decisions" carries a provenance
+     tag: [user_said] (user explicitly decided in the conversation),
+     [assistant_defaulted] (AI gave a default the user did not explicitly
+     endorse), or [inferred] (AI deduced from code/context). Any untagged
+     decision is a blocking finding.
+  3. laundering — any [assistant_defaulted] or [inferred] decision that affects
+     the goal, scope, or implementation direction MUST be an open_question, not
+     a frozen Confirmed Decision. Flag each such case as blocking.
+  4. downgrade — compare the capture's wording against the conversation for
+     semantic weakening (e.g. a product positioning the user stated strongly
+     that the capture reduces to a generic "notification"). Flag as blocking.
+  5. conversational reversals — if the user reversed or corrected an earlier
+     statement, the capture must reflect the FINAL position, not the superseded
+     one. Flag any stale/superseded decision still present.
+
+If intake-conversation.md is large (> ~1500 lines), do NOT skim or sample. Fan
+out multiple sub-agents to read disjoint segments exhaustively, then merge
+their findings — a lossy read of a long conversation is exactly the failure
+mode this review exists to catch.
+
+Emit a YAML document with:
+  kind: intake-capture
+  result: pass | fail
+  blocking_questions: []
+  notes: |
+    For each checked user point: state where it landed in the capture (section +
+    provenance) or that it is missing. Concrete entries only.
+EOF
+        ;;
       contract|criteria)
         cf="$GOALSPEC_ROOT/active/contract.yaml"
         if [ ! -f "$cf" ]; then
@@ -115,6 +168,12 @@ EOF
         fi
         # intake review pass does not change the §4 lifecycle state; the goal
         # stays in spec_drafting until the contract is reviewed.
+        ;;
+      intake-capture)
+        # intake-capture review binds to intake-capture.md content. It does not
+        # advance lifecycle state; 'approve intake-package' gates on a passing
+        # intake-capture review being present and fresh.
+        target_hash="$(goalspec_intake_capture_hash)"
         ;;
       contract|criteria)
         target_hash="$(goalspec_contract_hash)"

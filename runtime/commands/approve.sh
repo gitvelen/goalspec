@@ -30,6 +30,29 @@ esac
 
 [ -n "$cur_hash" ] || { echo "approval blocked: $kind target is missing" >&2; exit 1; }
 
+# intake-package hard gate: a passing, fresh intake-capture review must precede
+# package approval. This is the only gate that checks whether the capture
+# covers what the user actually said in the conversation (the intake/contract
+# reviews are fresh-context form checks and deliberately do not read the
+# conversation). Without it, intent drops in intake-capture.md launder silently
+# into goal.md / contract.yaml.
+if [ "$kind" = "intake-package" ]; then
+  rf="$GOALSPEC_ROOT/active/reviews.yaml"
+  ic_pass=0
+  if [ -f "$rf" ]; then
+    last="$(goalspec_yq_last_match_field '[.reviews[] | select(.kind == "intake-capture")]' 'result' "$rf")"
+    [ "$last" = "pass" ] && ic_pass=1
+  fi
+  if [ "$ic_pass" -ne 1 ]; then
+    echo "approve blocked: intake-capture review has not passed. Run 'goalspec review prompt intake-capture' (hot-context; reads intake-conversation.md against intake-capture.md), resolve findings, then 'goalspec review apply <file>' with result: pass." >&2
+    exit 1
+  fi
+  if goalspec_review_stale intake-capture; then
+    echo "approve blocked: intake-capture review is stale vs current intake-capture.md (the capture changed since review). Re-run 'goalspec review prompt intake-capture' and apply a fresh pass." >&2
+    exit 1
+  fi
+fi
+
 # Append an approval entry. Replace any prior same-kind entry.
 yq e -i "del(.approvals[] | select(.kind == \"$kind\"$( [ "$kind" = "high-risk" -o "$kind" = "regression-waiver" ] && echo " and .id == \"$id\"" )))" "$state_file"
 

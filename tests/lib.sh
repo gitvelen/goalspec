@@ -130,6 +130,21 @@ YML
   "$REPO_GS" approve goal >/dev/null
 }
 
+# Stamp a passing intake-capture review (the adversarial intent-coverage gate).
+# Call AFTER writing intake-capture.md and BEFORE 'approve intake-package'.
+# Re-stamp if the capture is edited after a prior stamp (its hash will have moved).
+stamp_intake_capture_review_pass() {
+  local tmp="$TESTS_TMP_ROOT/payloads"
+  mkdir -p "$tmp"
+  cat > "$tmp/intake-capture.yaml" <<'YML'
+kind: intake-capture
+result: pass
+blocking_questions: []
+notes: ok
+YML
+  "$REPO_GS" review apply "$tmp/intake-capture.yaml" >/dev/null
+}
+
 # Compile, write minimal contract, apply passing contract review, approve contract.
 # Used as a shortcut to reach the freeze step.
 compile_to_awaiting_confirmation() {

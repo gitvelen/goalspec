@@ -27,10 +27,15 @@
 3. 用户明确结束录入时，运行：
    `goalspec intake end`
 4. end 后，先从 `intake-conversation.md` 和 `intake-sources.yaml` 生成 `active/intake-capture.md` 和 `active/constraint-suggestions.yaml`，展示给人类确认或修正。
-5. 人类`确认并应用 intake package` 后，运行：
+5. **intake-capture 对抗审查（hard gate，必做）**：起草 capture 后、交人类确认前，运行 `goalspec review prompt intake-capture`。这是一次 **hot-context** 审查（与 intake/contract 的 fresh-context 形式审查不同，它必须读 `intake-conversation.md` 核对 capture 是否覆盖用户实际说的话）。逐条核对：每条用户发言是否被归类或显式排除；每个 Confirmed Decision 是否标注 provenance（`[user_said]`/`[assistant_defaulted]`/`[inferred]`）；影响目标/实现方向的 `assistant_defaulted`/`inferred` 是否本应转 Open Questions；capture 措辞是否弱化了用户原意（如把强定位降级成普通通知）。发现遗漏/降级/默认固化即修正 capture，然后 `goalspec review apply <file>` 记录 result: pass。`goalspec approve intake-package` 会硬性要求一条 passing 且 fresh 的 intake-capture review，否则拒绝。
+6. 人类`确认并应用 intake package` 后，运行：
    `goalspec approve intake-package`
    `goalspec intake apply-suggestions`
-6. 只有 package 已确认且 suggestions 已应用后，才把意图高保真结构化写入 `active/goal.md`。
+7. 只有 package 已确认且 suggestions 已应用后，才把意图高保真结构化写入 `active/goal.md`。
+
+## 超长对话处理
+
+`intake-conversation.md` 由 `goalspec intake end` 逐字无损切片生成，长变更可能达到数千行，单 context 读不完。若对话超过约 1500 行，起草 capture 与第 5 步对抗审查都不得抽样/略读——必须 fan-out 多个 subagent 分段读完全文再合并发现。有损地读长对话正是意图丢失的物理根因，第 5 步的对抗审查本身就是这道缺陷的兜底。
 
 ## Intake review package
 
