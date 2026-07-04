@@ -34,7 +34,7 @@ cannot bypass (`judge apply` / `run`):
    package and hands off to the human `/goalspec close` gate.
 2. **Iteration cap (token stop-loss)** — each `judge apply` (one Master verdict
    = one round) increments `state.run_loop.iteration`. At
-   `profile.run_loop.max_iterations` (default 8) the loop is marked `capped`:
+   `profile.run_loop.max_iterations` (read from profile) the loop is marked `capped`:
    further `run` and `judge apply` refuse until a human `/goalspec close` or
    `/goalspec reopen` resets the counter. The cap is read from profile, so it is
    decided **before** the loop runs, not during.

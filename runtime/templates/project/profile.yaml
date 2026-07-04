@@ -75,7 +75,7 @@ delivery:
   scan_allow_paths: []
 # run-loop stop-loss: the Master/Subagent loop inside a single /goalspec run is
 # capped at this many judge-apply rounds. Set before the loop runs (Akshy: exit
-# conditions are decided before running, not during). Default 8.
+# conditions are decided before running, not during). Default 40 (shipped; override below).
 # stall_threshold: no-progress detector. If the verdict fingerprint and the
 # evidence_hash are both unchanged for this many consecutive judge-apply rounds,
 # the loop is marked stalled (Oracle: no-progress detection). stalled is distinct

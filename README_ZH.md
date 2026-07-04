@@ -375,7 +375,7 @@ Master Evaluation -> Subagent Work -> Evidence/Progress Report
 停止条件，全部由循环无法绕过的 CLI 门禁（`run` / `judge apply`）强制执行：
 
 1. **所有必需 Criteria 通过** —— 下一次 `/goalspec run` 生成 close package，并交给 `/goalspec close`。
-2. **迭代上限（token 止损）** —— 每次 `judge apply`（一条 Master verdict = 一轮）会让 `state.run_loop.iteration` 自增。达到 `profile.run_loop.max_iterations`（默认 8）时，循环被标记为 `capped`：此后的 `run` 和 `judge apply` 都会被拒绝，直到人类执行 `/goalspec close` 或 `/goalspec reopen` 来重置它。上限从 profile 读取，因此是在循环运行**之前**就定好的。
+2. **迭代上限（token 止损）** —— 每次 `judge apply`（一条 Master verdict = 一轮）会让 `state.run_loop.iteration` 自增。达到 `profile.run_loop.max_iterations`（从 profile 读取，出厂默认见 `templates/project/profile.yaml`）时，循环被标记为 `capped`：此后的 `run` 和 `judge apply` 都会被拒绝，直到人类执行 `/goalspec close` 或 `/goalspec reopen` 来重置它。上限从 profile 读取，因此是在循环运行**之前**就定好的。
 3. **无进展（stalled）** —— `judge apply` 还会记录一份 verdict 指纹（每个 criterion 的最新 verdict，按 contract 顺序）以及当前的 evidence hash。如果两者连续 `profile.run_loop.stall_threshold`（默认 3）轮都不变，循环被标记为 `stalled`。`capped` 表示预算耗尽（close，或调高上限）；`stalled` 表示循环正卡在一个无法解决的 spec 缺陷上（reopen）。双重条件——verdict 和 evidence 都不变——正是为了让正常的多次迭代不被误杀：只要还有任何 verdict 在动，循环就在进展。所有必需 Criteria 已通过时豁免。
 4. **judgment 类 Criteria** —— 一旦所有 `machine` criterion 都拿到 pass verdict，循环就不会再盲目重试剩余的 `judgment` 类 criteria；它们需要人工/Master 解决，而不是 Subagent 迭代。
 
@@ -392,7 +392,7 @@ Goalspec 不内置调度器。如果想让循环在没有人类逐次输入 `/go
 ```yaml
 # .goalspec/project/profile.yaml
 run_loop:
-  max_iterations: 8     # 触发 capped 前的 judge-apply 轮数
+  max_iterations: 40    # 触发 capped 前的 judge-apply 轮数（出厂默认；在此覆盖）
   stall_threshold: 3    # 触发 stalled 前连续无变化的轮数
 ```
 
@@ -430,7 +430,7 @@ run_loop:
   evidence_diff: ["ev_04"]          # evidence hash 变化时当前存在的 evidence id
   stop_check:
     outcome: continue               # continue | capped | stalled
-    why: "iteration 3 < max_iterations=8"
+    why: "iteration 3 < max_iterations=40"
   contract_hash: sha256:...
   prompt_hash: sha256:...
 ```
@@ -488,7 +488,7 @@ LOOP_CONTRACT:
   scope: <allowed_paths>
   tools: <profile 的 test/build/lint/typecheck>
   verification: profile 命令在 /goalspec close 时跑；sensor 在 judge apply 时重跑 reproducible evidence
-  stop: max_iterations=8, stall_threshold=3, judgment-kind 门禁, all-required-pass
+  stop: max_iterations=40, stall_threshold=3, judgment-kind 门禁, all-required-pass
   escalation: /goalspec reopen <reason>（capped -> close 或 reopen；stalled -> reopen），/goalspec close（人工门禁）
   state: iteration=3, last_outcome=continue, trajectory={...}
   cleanup: close 把 active/ 归档到 history/vNNNN/、应用 memory-patch、重置 run_loop

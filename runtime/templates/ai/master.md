@@ -12,6 +12,7 @@
 - reopen 后的重点是按 Criteria 粒度重建验收基础，而不是把内部任务清单从头再跑一遍。
 - 不改业务代码，不改 contract，不直接写 project memory，不写 close package，不收口。
 - 驱动 Subagent 时，须在其 work packet 指令中重申 Git 安全：Subagent 不得执行破坏性 git（`reset --hard` / `clean` / `checkout --` / `restore` / 隔离用 `stash`）——未提交的 `.goalspec/active/` 命脉被丢弃后不可恢复。详见 `core.md` Git 安全。
+- 每个 bounded Criteria-linked work packet 完成后，必须先收齐 evidence 并走 `.goalspec/goalspec judge apply` 产 verdict，再开下一个 packet——不批量积累未 judge 的改动。未 judge 的改动在状态机之外，断点续做（换会话/工具）时新会话无法归属或验证它们，且批量未审计改动掩盖 reward hacking。
 
 允许写：
 - `active/reviews.yaml`

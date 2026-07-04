@@ -113,3 +113,33 @@ READ_THIS_PROMPT_FULLY_BEFORE_ACTION: true
 
 EOF
 cat "$pf"
+
+# Progress snapshot — lets a session entering a running goal mid-flight see
+# where things stand. Read-only; authoritative state stays in state.yaml /
+# verdict.yaml / trace.yaml. Reuses machine_unmet/judgment_unmet from above.
+required_total="$(goalspec_close_required_criteria_ids | grep -c . || true)"
+unmet_raw="${machine_unmet}${judgment_unmet}"
+unmet_count="$(printf '%s ' $unmet_raw | wc -w | tr -d ' ')"
+pass_count=$(( required_total - unmet_count )); [ "$pass_count" -lt 0 ] && pass_count=0
+if [ -n "$unmet_raw" ]; then
+  unmet_list="$(printf '%s\n' $unmet_raw | grep -v '^$' | sort -u | tr '\n' ' ')"
+else
+  unmet_list="(none)"
+fi
+_iter="$(yq e '.run_loop.iteration // 0' "$state_file")"
+_blocker="$(yq e '.run_loop.trajectory.current_blocker // ""' "$state_file")"
+_next="$(yq e '.run_loop.trajectory.next_step // ""' "$state_file")"
+_baserev="$(yq e '.git.base_revision // ""' "$state_file")"
+cat <<EOF
+
+--- RUN_PROGRESS (snapshot; authoritative state in state.yaml/verdict.yaml/trace.yaml) ---
+state: running
+iteration: $_iter
+required_criteria: ${pass_count}/${required_total} pass
+unmet: ${unmet_list}
+current_blocker: ${_blocker:-(none)}
+next_step: ${_next:-(none)}
+base_revision: ${_baserev:-(unset)}
+resume_hint: 新会话中途进入时，按 README "Resuming across sessions" 恢复上下文；未 judge 的改动用 \`git diff ${_baserev}..HEAD\` 加未提交内容判断归属（见 goal-driven-prompt 的 Tight coupling 纪律）。
+---
+EOF
