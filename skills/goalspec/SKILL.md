@@ -53,6 +53,8 @@ For complete command mapping, read `references/command-map.md`.
 
 ## Intake Package
 
+While framing the goal during intake, judge whether the change is one goal or several. If the intent spans multiple user values, multiple verification natures (mechanical + subjective), or a criteria count that approaches the cap, prefer splitting into separate goals — see `references/goal-splitting.md` for the criteria and granularity. One goal ≈ one user value + homogeneous verification + ~10–30 required criteria; close foundation work first so later goals can consume it.
+
 After intake ends, write both and show a concise review summary (Goal summary, sources, suggested constraints, blockers):
 
 ```text
@@ -65,6 +67,26 @@ Use `references/constraint-extraction.md` for extraction rules. Show both files 
 ## Criteria Drafting
 
 When compiling the contract (`goalspec compile`), draft Criteria using `references/criteria-writing.md`. It is a four-step authoring procedure. Step 1 has three perspectives draft **independently from orthogonal input sources** so they cannot anchor on each other: product-coverage reads `goal.md` functional branches (Intent, Narratives, every Success Model field, Scope, Risk Scan) — each `must_not_happen` becomes a negative Criterion and `final_completion_signal` becomes the single `final: true`; testing-coverage independently maps each branch across a quality-dimension matrix (normal/variant/negative/boundary/permission/data-lifecycle/integration/degradation); engineering-validity reads `.goalspec/project/*.yaml` constraints + project memory to reverse-derive constraint-consistency, implicit technical-contract, and cross-module Criteria the other two lenses cannot produce. Step 2 merges the three sources into a `goal_branch × quality-dimension` coverage matrix (computable coverage rate, no missing branch, no orphan). Step 3 applies a quality gate — engineering constraints plus verifiability / loop-safety — so every Criterion is decidable into a clear pass/fail and the run-loop can converge rather than stall. Step 4 assembles the contract and self-audits against the matrix.
+
+## Freeze Gates
+
+`/goalspec freeze` (the `确认并冻结契约` gate) checks these in order; any unmet gate blocks freeze. Satisfy them all before freezing to avoid serial trial-and-error (each `fail` otherwise reveals only the next gate):
+
+| # | Gate | How to satisfy |
+|---|---|---|
+| 1 | intake review pass + fresh | `goalspec review prompt intake` → run it in a fresh context → write the result yaml → `goalspec review apply <file>` |
+| 2 | goal approved + fresh | `goalspec approve goal` |
+| 3 | contract review pass + fresh | `goalspec review prompt contract` → fresh-context review → `goalspec review apply <file>` |
+| 4 | contract approved + fresh | `goalspec approve contract` |
+| 5 | no unresolved blocking questions | resolve blocking items in `.goalspec/active/questions.yaml` |
+| 6 | contract schema/coverage valid | fix `contract.yaml` until `goalspec validate` reports 0 errors |
+| 7 | business worktree clean (no uncommitted changes) | commit or stash business changes |
+| 8 | (only if `reopen_required`) reopen-impact human-reviewed | complete `.goalspec/active/reopen-impact.yaml` and set `reviewed_by_human: true` |
+
+Notes:
+- Editing `goal.md` or `contract.yaml` after a review/approval makes that review/approval **stale** — redo it. This is the most common cause of repeated freeze failures.
+- Freeze is **not** a correctness gate — "all work verdict-verified" is owned by `/goalspec close`. Freeze only locks the execution basis (goal + contract + constraints + prompt) and requires a clean worktree so `close` can later attribute changes cleanly to `base_revision..HEAD`.
+- Worktree-clean blocks **uncommitted** changes only; committed work since the last freeze is legitimate progress and does not block re-freeze after a reopen.
 
 ## Reopen Policy
 

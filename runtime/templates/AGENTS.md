@@ -69,7 +69,7 @@ intake 期间：专注澄清（只问 Goal/Criteria/Constraints/scope/risk/用�
 
 Subagent 可产出 evidence，但不得宣布最终成功；仅 `evaluated_by: master` 的 verdict 可判定 Criteria。测试通过、Subagent 自述、evidence 文本都不构成收口。
 
-run-loop（即上述 Master/Subagent 循环）在以下 stop condition 任一成立时停下，并报告 status 的 `NEXT_USER_ACTION`，勿盲目重试：所有 required Criteria 拿到 fresh Master pass（loop 目的达成，停止实施）；iteration 触顶被 `capped`（默认 8 轮，需 `/goalspec close` 或 `/goalspec reopen` 重置）；`stalled`（默认连续 3 轮无 verdict/evidence 进展，疑似 spec 缺陷，需 `/goalspec reopen`）；judgment 类 Criteria 阻塞（需人类/Master 裁决，非 Subagent 重试）；或 stale/缺失 prompt。
+run-loop（即上述 Master/Subagent 循环）在以下 stop condition 任一成立时停下，并报告 status 的 `NEXT_USER_ACTION`，勿盲目重试：所有 required Criteria 拿到 fresh Master pass（loop 目的达成，停止实施）；iteration 触顶被 `capped`（上限见 `profile.run_loop.max_iterations`，需 `/goalspec close` 或 `/goalspec reopen` 重置）；`stalled`（默认连续 3 轮无 verdict/evidence 进展，疑似 spec 缺陷，需 `/goalspec reopen`）；judgment 类 Criteria 阻塞（需人类/Master 裁决，非 Subagent 重试）；或 stale/缺失 prompt。
 
 reopen 仅用于冻结的 Goal/Criteria/Constraints 本身错误、不足、矛盾、或与人类新的验收口径冲突；细则见 `.goalspec/ai/core.md`。
 

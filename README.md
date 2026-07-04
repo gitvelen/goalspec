@@ -55,6 +55,15 @@ Optional AI adapter install:
 /path/to/goalspec install-ai codex    # or claude / lingma
 ```
 
+### Updating an existing install
+
+Re-running `/path/to/goalspec init` in a project that already has `.goalspec/` updates **framework code and templates** while **preserving project state**:
+
+- Updated (deleted and re-copied): `runtime/`, `ai/`, `skills/`, and the `goalspec` dispatcher. Because `runtime/templates/` is refreshed, the latest `goal.md` / `contract.yaml` / `state.yaml` templates take effect for the **next** `/goalspec start` (which rebuilds `active/` from templates).
+- Preserved (untouched): `active/`, `project/`, `history/`, `artifacts/`. Your `project/profile.yaml`, `project/constraints.yaml`, `project/memory.yaml`, and `project/regression-suite.yaml` are never overwritten.
+
+**Consequence for `project/profile.yaml`**: because it is preserved, framework defaults newly added to `templates/project/profile.yaml` (for example optional gates like `commands.audit` / `commands.sast` / `environment.smoke_tests` / `environment.fidelity`) are **not** merged into your existing profile automatically. If you want to use a newly added gate, diff your `project/profile.yaml` against `templates/project/profile.yaml` and copy the relevant keys in by hand. Optional gates default to empty/disabled, so an older profile still works — you only need to do this when you actively want a new gate.
+
 ## User commands
 
 Use only these user-facing commands:
@@ -374,7 +383,7 @@ until one of four stop conditions fires. The loop lives inside a single `/goalsp
 Stop conditions, all enforced in CLI gates the loop cannot bypass (`run` / `judge apply`):
 
 1. **All required Criteria pass** — the next `/goalspec run` generates the close package and hands off to `/goalspec close`.
-2. **Iteration cap (token stop-loss)** — each `judge apply` (one Master verdict = one round) increments `state.run_loop.iteration`. At `profile.run_loop.max_iterations` (default 8) the loop is marked `capped`: further `run` and `judge apply` refuse until a human `/goalspec close` or `/goalspec reopen` resets it. The cap is read from profile, so it is fixed before the loop runs.
+2. **Iteration cap (token stop-loss)** — each `judge apply` (one Master verdict = one round) increments `state.run_loop.iteration`. At `profile.run_loop.max_iterations` (read from profile — see `templates/project/profile.yaml` for the shipped default) the loop is marked `capped`: further `run` and `judge apply` refuse until a human `/goalspec close` or `/goalspec reopen` resets it. The cap is read from profile, so it is fixed before the loop runs.
 3. **No-progress (stalled)** — `judge apply` also records a verdict fingerprint (every criterion's latest verdict, in contract order) and the current evidence hash. If both are unchanged for `profile.run_loop.stall_threshold` (default 3) consecutive rounds, the loop is marked `stalled`. `capped` means the budget is exhausted (close, or raise the cap); `stalled` means the loop is spinning on an unsolvable spec defect (reopen). The double condition — verdict and evidence both unchanged — is what keeps normal multi-round iteration from being killed: as long as any verdict is still moving, the loop is making progress. Exempted when all required Criteria already pass.
 4. **Judgment-kind Criteria** — once every `machine` criterion has a pass verdict, the loop will not blindly retry the remaining `judgment`-kind criteria; those need human/Master resolution, not Subagent iteration.
 
@@ -388,10 +397,24 @@ Goalspec ships no scheduler. To advance the loop without a human typing each `/g
 
 Only the `frozen -> ready_to_close` execution span is looped. The human gates (`start` / `end` / `close`) are never crossed automatically.
 
+### Resuming across sessions
+
+Run-loop state is fully on disk, so a run can stop and resume in a different AI session/tool. State (`state.yaml` `run_loop`: iteration, stall_count, trajectory; `verdict.yaml`; `evidence.yaml`; `trace.yaml`) persists across sessions and is not reset on session switch; `run` is idempotent and re-entrant; hash-staleness checks refuse to run if anyone changed the frozen goal/contract in the meantime.
+
+A new session entering a `running` goal mid-flight should recover context in this order before continuing:
+
+1. `.goalspec/goalspec status` — read `STATE`, `UNMET_CRITERIA`, `CRITERIA_STATUS`, `iteration`, `NEXT_USER_ACTION`.
+2. `.goalspec/active/goal-driven-prompt.md` — read fully; it is the frozen contract (goal + all criteria + constraints + scope).
+3. `.goalspec/active/trace.yaml` — per-round verdict history (what was judged, with which outcome and reasoning).
+4. `.goalspec/active/state.yaml` → `run_loop.trajectory` — `current_blocker`, `next_step`, `tried_paths`, `failed_approaches`.
+5. `git diff <base_revision>..HEAD` plus any uncommitted changes — code changes not yet backed by a `judge apply` verdict. Decide whether they belong to this goal, how far they got, and which criterion they target; finish their evidence + verdict before moving on.
+
+**Gap to watch**: code changed by a Subagent but not yet run through `judge apply` is outside the state machine. To keep this window small, have the Primary Subagent produce evidence and trigger `judge apply` for each bounded criterion-linked work packet before starting the next, rather than batching many changes before a single verdict (see "Loop Procedure" in the goal-driven prompt).
+
 ```yaml
 # .goalspec/project/profile.yaml
 run_loop:
-  max_iterations: 8     # judge-apply rounds before capped
+  max_iterations: 40    # judge-apply rounds before capped (shipped default; override here)
   stall_threshold: 3    # consecutive unchanged rounds before stalled
 ```
 
@@ -429,7 +452,7 @@ Each `judge apply` (one Master verdict = one round) appends one entry to `.goals
   evidence_diff: ["ev_04"]          # evidence ids present when the evidence hash moved
   stop_check:
     outcome: continue               # continue | capped | stalled
-    why: "iteration 3 < max_iterations=8"
+    why: "iteration 3 < max_iterations=40"
   contract_hash: sha256:...
   prompt_hash: sha256:...
 ```
@@ -487,7 +510,7 @@ LOOP_CONTRACT:
   scope: <allowed_paths>
   tools: <profile test/build/lint/typecheck>
   verification: profile commands at /goalspec close; sensor re-run of reproducible evidence at judge apply
-  stop: max_iterations=8, stall_threshold=3, judgment-kind gate, all-required-pass
+  stop: max_iterations=40, stall_threshold=3, judgment-kind gate, all-required-pass
   escalation: /goalspec reopen <reason> (capped -> close-or-reopen; stalled -> reopen), /goalspec close (human gate)
   state: iteration=3, last_outcome=continue, trajectory={...}
   cleanup: close archives active/ to history/vNNNN/, applies memory-patch, resets run_loop

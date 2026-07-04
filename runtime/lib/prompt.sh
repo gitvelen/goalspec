@@ -142,7 +142,9 @@ Agent roles are execution roles only. They must not create new Goals, Criteria, 
 
 ## Loop Procedure
 
-Repeat this cycle inside the current AI tool/session:
+Repeat this cycle inside the current AI tool/session. One packet at a time, fully closed before the next:
+
+**Tight coupling (packet → evidence → verdict).** Every bounded Criteria-linked work packet must be followed by its evidence and a \`judge apply\` verdict **before** the next packet starts. Do not accumulate multiple packets' worth of changes before a single verdict — unjudged changes are invisible to the state machine, break resumption across sessions (a stop mid-accumulation leaves work the next session cannot attribute or verify), and hide reward-hacking risk behind a backlog of unaudited work.
 
 1. Master Evaluation
    - Read the frozen Goal, Criteria, Constraints, current evidence, and current verdicts.

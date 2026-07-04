@@ -272,7 +272,62 @@ EOF
       capped|stalled) goalspec_harness_emit_candidate "$t1_outcome" ;;
     esac
     ;;
+  draft)
+    crit="${1:-}"; shift || true
+    vcmd="pass"; refs=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --verdict) vcmd="$2"; shift 2 ;;
+        --evidence) refs="$2"; shift 2 ;;
+        *) echo "judge draft: unknown argument: $1" >&2; exit 2 ;;
+      esac
+    done
+    [ -n "$crit" ] || { echo "usage: goalspec judge draft <criteria_id> --verdict <pass|insufficient|...> --evidence <EV-A,EV-B>" >&2; exit 2; }
+    [ -n "$refs" ] || { echo "judge draft: --evidence is required (comma-separated EV ids)" >&2; exit 2; }
+    [ "$(yq e '.status' "$cf")" = "frozen" ] || { echo "judge draft: contract not frozen" >&2; exit 1; }
+    if ! yq e ".criteria[] | select(.id == \"$crit\")" "$cf" >/dev/null 2>&1 || [ -z "$(yq e ".criteria[] | select(.id == \"$crit\") | .id" "$cf")" ]; then
+      echo "judge draft: criteria_ref $crit not found in contract" >&2; exit 1
+    fi
+    # Validate each evidence id exists; build a clean space-separated list.
+    refs_clean=""; errs=0
+    IFS=',' read -ra ref_arr <<< "$refs"
+    for er in "${ref_arr[@]}"; do
+      er="${er// /}"
+      [ -n "$er" ] || continue
+      if ! yq e ".evidence[] | select(.id == \"$er\") | .id" "$ef" 2>/dev/null | grep -q .; then
+        echo "judge draft: evidence_ref $er not found in evidence.yaml" >&2
+        errs=$((errs+1))
+      else
+        refs_clean="${refs_clean:+$refs_clean }$er"
+      fi
+    done
+    [ "$errs" -eq 0 ] || exit 1
+    [ -n "$refs_clean" ] || { echo "judge draft: no valid evidence ids in --evidence '$refs'" >&2; exit 1; }
+    chash="$(goalspec_contract_hash)"
+    ehash="$(goalspec_evidence_hash)"
+    basis="$(printf '%s\n' "$refs_clean" | tr ' ' '\n' | goalspec_evidence_basis_hash 2>/dev/null || true)"
+    [ -n "$basis" ] || { echo "judge draft: could not compute evidence_basis_hash" >&2; exit 1; }
+    refs_yaml="$(printf '%s\n' "$refs_clean" | tr ' ' '\n' | sed 's/^/"/;s/$/",/' | tr -d '\n' | sed 's/,$//')"
+    cat <<EOF
+criteria_ref: "$crit"
+evidence_refs: [$refs_yaml]
+contract_hash: "$chash"
+evidence_hash: "$ehash"
+evidence_basis_hash: "$basis"
+# criterion_hash and goal_hash are injected automatically at apply time.
+verdict: $vcmd
+reason: |-
+  Coverage audit:
+  - claim: "TODO: decompose criterion.statement into atomic claims"
+    evidence: [TODO]
+    sufficiency: TODO
+    why: "TODO"
+  conclusion: "TODO: fill before 'judge apply'. A pass verdict's reason must contain the tokens: Coverage audit: / claim / evidence / sufficiency / conclusion."
+context: fresh
+evaluated_by: master
+EOF
+    ;;
   *)
-    echo "usage: goalspec judge prompt|apply" >&2; exit 2
+    echo "usage: goalspec judge prompt|apply|draft" >&2; exit 2
     ;;
 esac
