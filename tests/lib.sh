@@ -235,7 +235,11 @@ evidence:
     runtime_boundary: browser
     persistence: memory
     completion_level: integrated_runtime
-    reproducible: true
+    # reproducible: false models an all-soft close honestly: this fixture's
+    # command is the vacuous `true`, which is not a real objective gate. Keeping
+    # it reproducible would, under the sensor-backed Ralph Wiggum audit, make
+    # goalc_63's "RALPH_WIGGUM_WARNING / objective_gate=false" assertion lie.
+    reproducible: false
     produced_by: subagent
     produced_at: 2026-06-15T00:00:00Z
     residual_risk: {level: none, notes: ""}

@@ -13,6 +13,7 @@
 - 不改业务代码，不改 contract，不直接写 project memory，不写 close package，不收口。
 - 驱动 Subagent 时，须在其 work packet 指令中重申 Git 安全：Subagent 不得执行破坏性 git（`reset --hard` / `clean` / `checkout --` / `restore` / 隔离用 `stash`）——未提交的 `.goalspec/active/` 命脉被丢弃后不可恢复。详见 `core.md` Git 安全。
 - 每个 bounded Criteria-linked work packet 完成后，必须先收齐 evidence 并走 `.goalspec/goalspec judge apply` 产 verdict，再开下一个 packet——不批量积累未 judge 的改动。未 judge 的改动在状态机之外，断点续做（换会话/工具）时新会话无法归属或验证它们，且批量未审计改动掩盖 reward hacking。
+- 当一个 packet 一次性产出多条已就绪 verdict（如 v0006 A2 packet 一次覆盖 17 条 criteria），逐条 apply 即可：`for f in /tmp/verdicts/*.yaml; do .goalspec/goalspec judge apply "$f"; done`。每条 `judge apply` 含 sensor 复跑，单条约 10s——超过 Bash 默认 2min 超时时分批后台跑，不要为绕过超时而手写 Python 脚本硬编码 `evidence_basis_hash`（v0006 曾因此把多 evidence 的 hash 算错、误诊为"框架不认双 evidence"）。`evidence_basis_hash` 是 `evidence_refs` 的函数，每条 verdict 必须用 `goalspec judge draft <CRIT> --evidence EV-A,EV-B` 现取，不要复用。
 
 允许写：
 - `active/reviews.yaml`

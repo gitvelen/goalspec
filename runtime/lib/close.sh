@@ -245,7 +245,6 @@ goalspec_close_write_package() {
 status: ready_to_close
 generated_at: "$now"
 goal_id: "$goal_id"
-goal_summary: "$goal_summary"
 criteria_verdicts:
 YML
   local cid verdict refs
@@ -339,6 +338,13 @@ YML
 
   suggested_hash="$(goalspec_suggested_delivery_hash)"
   yq e -i ".hashes.suggested_delivery_hash = \"$suggested_hash\"" "$cpf"
+  # Inject goal_summary AFTER all heredoc writes and BEFORE close_package_hash
+  # computation (which covers presentation fields). Use the strenv helper, not a
+  # double-quoted heredoc line: goal_summary comes straight from goal.md Intent
+  # and can contain ASCII double-quotes, ':', '#', backslashes or CJK punctuation
+  # that would otherwise break the YAML parse and silently null the hash
+  # (velentrade v0006 close-package quote-escape incident).
+  goalspec_yq_set_scalar "$cpf" '.goal_summary' "$goal_summary"
   cphash="$(goalspec_close_package_hash)"
   yq e -i ".hashes.close_package_hash = \"$cphash\"" "$cpf"
   yq e -i ".close_package_hash = \"$cphash\"" "$state_file"
