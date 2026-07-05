@@ -87,6 +87,27 @@ goalspec_fidelity_pass_verdict_count() {
   yq e "[.verdicts[] | select(.verdict == \"pass\") | select(.contract_hash == \"$cur_chash\")] | length" "$vf" 2>/dev/null || printf '0'
 }
 
+# Count DISTINCT reproducible evidence ids cited by current-contract pass verdicts.
+# This is the Tier-2 objective backstop: judge apply (judge.sh sensor_verify)
+# re-runs each reproducible evidence's .command and rejects the verdict on
+# non-zero exit, so "a pass verdict cites a reproducible evidence id" implies
+# "an objective sensor re-ran that evidence's command and it exited 0". Filter
+# by contract_hash so a scoped reopen does not let last round's sensor-verified
+# evidence pose as this round's objective gate. Counts distinct evidence ids
+# (not verdicts): N verdicts citing the same EV-001 = 1 backing.
+goalspec_fidelity_count_sensor_backed_evidence() {
+  local vf="$GOALSPEC_ROOT/active/verdict.yaml" ef="$GOALSPEC_ROOT/active/evidence.yaml"
+  { [ -f "$vf" ] && [ -f "$ef" ]; } || { printf '0'; return 0; }
+  local cur_chash
+  cur_chash="$(goalspec_contract_hash 2>/dev/null || true)"
+  yq e ".verdicts[] | select(.verdict == \"pass\") | select(.contract_hash == \"$cur_chash\") | (.evidence_refs // [])[]" "$vf" 2>/dev/null \
+    | sort -u \
+    | while IFS= read -r eid; do
+        [ -n "$eid" ] || continue
+        yq e ".evidence[] | select(.id == \"$eid\") | select(.reproducible == true) | .id" "$ef" 2>/dev/null
+      done | grep -c .
+}
+
 # goalspec_fidelity_gate: run smoke tests; return 0 to allow close (soft by
 # default), 1 to block (only when enforce_on_close=true and a smoke failed).
 # Always prints SMOKE_WARNING / RALPH_WIGGUM_WARNING to stderr when applicable
@@ -116,24 +137,39 @@ goalspec_fidelity_gate() {
   fi
 
   # Ralph Wiggum audit: was ANY objective gate present and passing? Pure
-  # bookkeeping — no coverage debate. The all-soft close (velentrade) is
-  # exactly objective_gate=false with N>0 pass verdicts.
-  local verdicts objective_gate
+  # bookkeeping — no coverage debate. Two objective backstops count:
+  #   (a) a configured smoke test that passed (traverses production invariants),
+  #   (b) a reproducible evidence cited by a current-contract pass verdict —
+  #       judge apply's sensor re-ran its .command and it exited 0.
+  # Before this, a project with no smoke configured but every verdict
+  # sensor-verified still reported "0 objective gate" (velentrade v0006:
+  # pytest/vitest/playwright all sensor-re-run, yet RALPH_WIGGUM_WARNING fired),
+  # which trained operators to ignore the warning. The NOTE below still flags
+  # the smoke-less close (M1/M5 production-traversal risk) without equating it
+  # to "two optimists agreeing".
+  local verdicts sensor_backed objective_gate
   verdicts="$(goalspec_fidelity_pass_verdict_count)"
-  if [ "${n:-0}" -gt 0 ] && [ "$gate_passed" = "true" ]; then
+  sensor_backed="$(goalspec_fidelity_count_sensor_backed_evidence)"
+  if { [ "${n:-0}" -gt 0 ] && [ "$gate_passed" = "true" ]; } || [ "${sensor_backed:-0}" -gt 0 ]; then
     objective_gate=true
   else
     objective_gate=false
     if [ "${verdicts:-0}" -gt 0 ]; then
-      warnings="${warnings}RALPH_WIGGUM_WARNING: ${verdicts} pass verdict(s), 0 backed by an objective gate traversing production invariants — 'two optimists agreeing' failure mode. "
+      warnings="${warnings}RALPH_WIGGUM_WARNING: ${verdicts} pass verdict(s), 0 backed by an objective gate (no smoke configured, no reproducible evidence sensor-verified) — 'two optimists agreeing' failure mode. "
     fi
+  fi
+  # Smoke-less close with sensor backing: still advisory — sensor re-runs the
+  # evidence command but does not traverse production invariants the way a real
+  # smoke test would (M1/M5 risk).
+  if [ "${n:-0}" -eq 0 ] && [ "${sensor_backed:-0}" -gt 0 ]; then
+    warnings="${warnings}RALPH_WIGGUM_NOTE: ${sensor_backed} reproducible evidence sensor-verified, but no end-to-end smoke test traversing production invariants (M1/M5 risk). "
   fi
 
   # All output (warnings + summary) goes to stdout so the caller captures both
   # in one shot; exit status alone signals block-vs-warn.
   [ -z "$warnings" ] || printf '%s\n' "$warnings"
-  printf 'smoke: tests=%s gate_passed=%s objective_gate=%s pass_verdicts=%s\n' \
-    "${n:-0}" "$gate_passed" "$objective_gate" "${verdicts:-0}"
+  printf 'smoke: tests=%s gate_passed=%s objective_gate=%s sensor_backed=%s pass_verdicts=%s\n' \
+    "${n:-0}" "$gate_passed" "$objective_gate" "${sensor_backed:-0}" "${verdicts:-0}"
 
   # Block only when explicitly enforced AND a smoke command actually failed.
   if [ "$gate_passed" = "false" ] && goalspec_fidelity_enforce_on_close; then
