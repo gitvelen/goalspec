@@ -137,7 +137,11 @@ constraints + project memory + regression-suite，反向推出产品/测试视�
 - **无实现泄漏**：statement 里**不得**出现技术选型、文件路径、函数名、类名、任务步骤（会被
   `schema.sh` 拒，命中 `实现|重构|使用|implement|refactor|use|create file|edit file|修改`）。
 - **kind 正确**：`machine` 优先（run-loop 可自动推进）；`judgment` 仅在确实无法机器判定时使用，
-  且要意识到它会卡住 close 直到人工裁决。
+  且要意识到它会卡住 close 直到人工裁决。**但「machine 优先」不等于「machine 强制」**：效用/统计类
+  成功标准（如「回测结果能否支撑投产判断」「因子 IC 是否有预测力」「前端是否真好用」）本质不可
+  pass/fail 机器判定——强行写成 machine 会退化成存在性弱断言（「页面能加载」），反而丢失验收力。
+  这类用 `kind: judgment` 显式承接，并在 statement 写清人类裁决口径，不要为绕开 judgment 代价而
+  把效用验收阉割成能力存在。
 - **与 constraints 一致**：不与已有 constraint 矛盾（呼应 1c）。
 
 > **盲区示例 — AND 复合断言拆分**（schema.sh 不查原子化，是 loop stall 主因）：

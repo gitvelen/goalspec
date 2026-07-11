@@ -61,11 +61,16 @@ Verify concretely (do NOT judge vaguely):
      (Goal Candidate / User-visible Success / Confirmed Decisions / Scope /
      Excluded), or is explicitly marked Excluded with a reason. List each user
      point you cannot locate in the capture as a blocking finding.
-  2. provenance — every entry under "Confirmed Decisions" carries a provenance
-     tag: [user_said] (user explicitly decided in the conversation),
-     [assistant_defaulted] (AI gave a default the user did not explicitly
-     endorse), or [inferred] (AI deduced from code/context). Any untagged
-     decision is a blocking finding.
+  2. provenance (citation-checked, not tag-trusted) — every [user_said] entry
+     MUST carry a verbatim quote of the user's words that you can locate in
+     intake-conversation.md (grep it). Mechanically verify each: does the quote
+     actually appear in the conversation, AND was it the user initiating the
+     decision (not "up to you / either is fine" delegation, not the AI's
+     recommendation the user merely agreed to)? A [user_said] with no quote, a
+     quote not found in the conversation, or a quote that is delegation/agreement
+     rather than user-originated = blocking (downgrade to
+     [assistant_defaulted]/[inferred] and move to Open Questions). Any untagged
+     decision is also blocking.
   3. laundering — any [assistant_defaulted] or [inferred] decision that affects
      the goal, scope, or implementation direction MUST be an open_question, not
      a frozen Confirmed Decision. Flag each such case as blocking.
@@ -75,6 +80,23 @@ Verify concretely (do NOT judge vaguely):
   5. conversational reversals — if the user reversed or corrected an earlier
      statement, the capture must reflect the FINAL position, not the superseded
      one. Flag any stale/superseded decision still present.
+  6. acceptance coverage — every workunit / capability listed in User-visible &
+     System-observable Success must have a corresponding ACCEPTANCE POINT
+     ("done when <observable condition>; fails when <observable condition>"),
+     distinct from the capability itself. Flag as blocking: a capability with no
+     acceptance point; a point that degenerated into mere existence ("page can
+     load", "displays X", "no errors") rather than a success condition; or a
+     top-level utility goal (e.g. "backtest decides whether to ship") with no
+     acceptance point at all — even if that point must be kind: judgment. A
+     capture with no Acceptance Signals section at all fails every capability.
+  7. source-claim laundering — for any decision that drives scope/goal AND rests
+     on an intake source (a sourced doc, not the user's own words), the capture
+     MUST explicitly list the key claims it adopted from that source ("we adopted
+     X from <source> §Y"). Source content is NOT ground truth — it is unverified
+     input the AI chose to trust. Flag as blocking: a scope-driving decision
+     resting on a source with no adopted-claims listed (without this the reviewer
+     cannot tell what was trusted, and a domain error in the source — e.g. a
+     wrong "scope-legitimacy" claim — sails through uncited).
 
 If intake-conversation.md is large (> ~1500 lines), do NOT skim or sample. Fan
 out multiple sub-agents to read disjoint segments exhaustively, then merge
