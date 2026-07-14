@@ -4,4 +4,7 @@
 #   - contract_hash, criteria_refs, evidence_requirement_refs
 #   - command, exit_code, artifact_paths
 #   - produced_by: subagent
+#   - coverage_claims (OPTIONAL): [{route, state}] — when set + reproducible:true,
+#     the sensor requires a `GOALSPEC_COVERED: <route>` marker per route in the
+#     command output (anti-silent-pass; see evidence-writing.md).
 evidence: []

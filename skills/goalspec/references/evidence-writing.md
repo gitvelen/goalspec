@@ -73,6 +73,42 @@ sensor 重跑的方式是 `cd "$PROJECT_ROOT" && bash -lc "$command"`。所以 c
 - 自包含（env / 路径显式，不依赖交互式 shell 的别名）。
 - 快——每次 judge 都重跑 reproducible evidence；慢命令拖累 loop。
 
+## coverage_claims：堵住「在错误路由上伪绿」
+
+sensor 只验命令 exit 0——它无法知道命令是否真的断言了目标路由。一个常见伪绿：测试 `goto("/governance/overview")` 被 auth gate 重定向到 `/market/stocks`，但断言的是通用 DOM（字体、不溢出），在市场页也成立 → exit 0 → pass，其实根本没碰到治理页。
+
+`coverage_claims` 是 opt-in 的显式覆盖声明，把「测了对的路由」从隐式变显式：
+
+```yaml
+- id: EV-GRID
+  command: "cd frontend && npx playwright test tests/visual/grid.spec.ts"
+  reproducible: true
+  coverage_claims:
+    - route: "/governance/overview"
+      state: "full"
+```
+
+sensor 重跑命令后，会 grep 输出里每个声明 route 的 marker：
+
+```
+GOALSPEC_COVERED: /governance/overview
+```
+
+任一声明 route 缺对应 marker → 该 pass verdict 被拒（`sensor coverage check failed`）。测试里在**路由专属断言之后** emit marker：
+
+```ts
+await page.goto("/governance/overview");
+await expect(header).toBeVisible();   // 重定向时这里先 fail → exit≠0 → sensor 已挡
+console.log("GOALSPEC_COVERED: /governance/overview");
+```
+
+约定与限制：
+
+1. **必须配 `reproducible: true`**：marker 只在 sensor 重跑时校验；`reproducible: false` 的 evidence 写 `coverage_claims` 会被 schema 拒（marker 永不被验，自欺）。
+2. **marker 要在断言后**：若重定向，路由专属断言先 fail（exit≠0），sensor 已挡，marker 根本到不了——这正是约定绑定断言的意图。
+3. **非银弹**：作者理论上能 emit 假 marker（goto 都不做就 log）。但假 marker 在代码 review 里一眼可见，且违背"断言后 emit"的约定；它抬高了伪造成本，把隐式漏洞变显式声明。evidence 不声明 `coverage_claims` 时，sensor 行为不变（纯 exit 0）。
+4. **route 要可机器对齐**：用与 `page.goto` 完全一致的路径串（含/不含尾斜杠要统一）。
+
 ## 绑定与覆盖
 
 - evidence 必须 `criteria_refs` 回指 criterion；无主 evidence 不被引用。

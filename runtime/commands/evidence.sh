@@ -45,6 +45,18 @@ case "$sub" in
   residual_risk:
     level: none
     notes: ""
+  # coverage_claims (OPTIONAL, anti-silent-pass): declare the routes/states this
+  # evidence actually exercises. When present + reproducible:true, the sensor
+  # greps the re-run output for a `GOALSPEC_COVERED: <route>` marker per route
+  # and rejects the pass verdict if any is missing — so a test that runs on the
+  # wrong route (e.g. an auth redirect) cannot pass silently. Emit the marker in
+  # the spec AFTER the route-specific assertion:
+  #   await page.goto("/governance/overview");
+  #   await expect(header).toBeVisible();
+  #   console.log("GOALSPEC_COVERED: /governance/overview");
+  # coverage_claims:
+  #   - route: "/governance/overview"
+  #     state: "full"
 EOF
     ;;
   check)

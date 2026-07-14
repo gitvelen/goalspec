@@ -183,5 +183,27 @@ goalspec_schema_evidence_entry() {
       fi
     fi
   fi
+  # coverage_claims (opt-in anti-silent-pass, B): if declared, each entry must
+  # carry a non-empty route, and the entry must be reproducible:true (otherwise
+  # the sensor never re-runs the command and the GOALSPEC_COVERED markers are
+  # never verified, defeating their purpose). See sensor.sh + evidence-writing.md.
+  local cc_len
+  cc_len="$(yq e ".evidence[] | select(.id == \"$id\") | .coverage_claims // [] | length" "$ef" 2>/dev/null || echo 0)"
+  if [ "${cc_len:-0}" -gt 0 ] 2>/dev/null; then
+    if [ "$repro" != "true" ]; then
+      echo "evidence $id: coverage_claims declared but reproducible != true (sensor would never verify the GOALSPEC_COVERED markers)" >&2
+      return 1
+    fi
+    local cci croute
+    cci=0
+    while [ "$cci" -lt "$cc_len" ]; do
+      croute="$(yq e ".evidence[] | select(.id == \"$id\") | .coverage_claims[$cci].route // \"\"" "$ef" 2>/dev/null)"
+      if [ -z "$croute" ] || [ "$croute" = "null" ]; then
+        echo "evidence $id: coverage_claims[$cci] missing route" >&2
+        return 1
+      fi
+      cci=$((cci+1))
+    done
+  fi
   return 0
 }

@@ -23,4 +23,9 @@ Map user-facing commands:
 
 Internal commands such as `review prompt`, `review apply`, `approve goal`, `compile`, `approve contract`, `freeze`, `judge`, `complete`, `scope-check`, and `validate` are not normal user commands. Use them only when `status` or role instructions require them.
 
+Two scaffolding helpers are NOT user gates — the run-loop uses them directly to avoid hand-computing hashes:
+
+- `goalspec evidence template <criteria_id>` — emits an evidence skeleton with `contract_hash` / `criteria_refs` / `evidence_requirement_refs` pre-filled from the frozen contract. Use it whenever recording evidence instead of assembling fields by hand.
+- `goalspec judge draft <criteria_id> --evidence EV-A,EV-B` — emits a verdict object with `contract_hash` / `evidence_hash` / `evidence_basis_hash` filled and a `coverage_audit` skeleton. Fill the claims, then `goalspec judge apply <file>`. Do not hand-compute hashes or hand-write a `/tmp` apply helper.
+
 When the user says "继续", do not guess. Run `status` and follow the current state, but do not start implementation unless the user explicitly includes `/goalspec run`, and do not close unless the user explicitly includes `/goalspec close`. Bare "确认"/"ok"/silence is not enough for approval; require stage-specific phrases such as `确认并应用 intake package` or `确认并冻结契约`.

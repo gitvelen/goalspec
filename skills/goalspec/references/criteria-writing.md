@@ -210,6 +210,12 @@ constraints + project memory + regression-suite，反向推出产品/测试视�
 - nice-to-have / 优化想法 → `optional_criteria`，**不得阻断收口**。
 - 允许的落点域 → `allowed_paths`（宽域 glob，如 `src/**`、`tests/**`）；不得触碰的 →
   `forbidden_paths`（精确集合）。`allowed_paths` 不得为空。
+  - **路径模式是全路径锚定的**（`^...$`）：`tests/**` 只匹 repo 根的 `tests/...`，不会误伤
+    `frontend/tests/...`。所以 forbidden 用 `tests/**` 排除 repo 根测试是安全的，嵌套 evidence 基建不受影响。
+  - **evidence/测试基建 glob 要在 `allowed_paths` 里预声明**：若本 goal 要用 browser evidence
+    （如 `frontend/tests/visual/*.spec.ts`、fixture），把对应 glob（`frontend/tests/visual/**`）写进
+    `allowed_paths`，否则实施期 scope-check 会以 unattributed 拦截、被迫 `scope amend`。这不是框架
+    缺陷，是编译期未预声明。
 - 锁定的 regression → 作为 `required_regressions` / required evidence 注入。
 - **用 Step 2 的覆盖矩阵反向逐条核对**：是否仍有未覆盖的格子——**特别是 `must_not_happen` 与
   Risk Scan 的每一行**？任何空格必须落成 criterion 或显式移入 constraints，不得静默遗漏。是否有新 orphan？
