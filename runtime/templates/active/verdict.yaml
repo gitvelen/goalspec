@@ -15,7 +15,16 @@
 #                                            # requirements); scoped freshness
 #   - goal_hash: "<sha256:...>"              # injected at apply: goal.md snapshot
 #   - verdict: pass | fail | insufficient | blocked | stale | reopen_required
-#   - reason: "..."
+#   - coverage_audit:                       # OPTIONAL, preferred for pass verdicts.
+#       - claim: "<atomic claim from criterion.statement>"
+#         evidence_refs: [EV-...]           # must be non-empty; union must cover verdict.evidence_refs
+#         sufficiency: sufficient | insufficient | partial
+#         why: "..."
+#     If present, `judge apply` checks completeness (every claim binds >=1
+#     evidence, every cited evidence appears in some claim) and skips the legacy
+#     free-text token check on `reason`. If absent, `reason` must contain the
+#     tokens Coverage audit: / claim / evidence / sufficiency / conclusion.
+#   - reason: "..."                         # always required (schema); short conclusion when coverage_audit present
 #   - context: fresh
 #   - evaluated_by: master
 verdicts: []

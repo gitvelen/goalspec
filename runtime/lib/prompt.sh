@@ -161,6 +161,7 @@ Repeat this cycle inside the current AI tool/session. One packet at a time, full
    - Record facts, commands, artifacts, results, and residual risk.
    - Evidence must bind to Criteria and evidence requirements.
    - Evidence and progress reports must not declare final success.
+   - Emit each evidence skeleton with \`goalspec evidence template <criteria_id>\` — it pre-fills contract_hash / criteria_refs / evidence_requirement_refs from the frozen contract. Do not hand-assemble hashes.
 
 4. Master Verdict
    - Evaluate from fresh context; do not judge from Subagent conversation or self-report.
@@ -168,7 +169,7 @@ Repeat this cycle inside the current AI tool/session. One packet at a time, full
    - Do not treat evidence requirement types, passing tests, fixtures, mocks, static assertions, missing-state samples, or Subagent self-reports as sufficient by themselves.
    - If any atomic claim lacks sufficient evidence, emit insufficient/fail/blocked/stale/reopen_required instead of pass.
    - Perform Constraint Conformance alongside the Coverage Audit: check the implementation against Project Constraints (long-term) and Goal-level Constraints. If it violates any \`level: hard\` constraint, judge the criterion \`fail\` with reason including \`Constraint violation: <constraint_id>\` — even if the Coverage Audit would otherwise pass. \`level: soft\` violations are advisory (noted in reason, do not force fail). Meeting a criterion by breaking a hard constraint is NOT acceptance.
-   - A pass verdict reason must include \`Coverage audit:\` with claim/evidence/sufficiency/conclusion details.
+   - A pass verdict must demonstrate its Coverage Audit. Preferred: a structured \`coverage_audit:\` list (each entry: claim / evidence_refs / sufficiency / why) — every cited evidence_ref must appear in at least one claim, and every claim must bind ≥1 evidence. Fallback for simple verdicts: a free-text reason containing the tokens \`Coverage audit:\` / claim / evidence / sufficiency / conclusion. Emit the skeleton with \`goalspec judge draft <criteria_id> --evidence EV-A,EV-B\` — it fills contract_hash / evidence_hash / evidence_basis_hash and the audit skeleton; do not hand-compute hashes.
    - Apply verdicts through the normal Goalspec judge path so iteration, cap, and stalled accounting can occur.
 
 5. Continue Or Stop

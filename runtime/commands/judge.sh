@@ -134,19 +134,59 @@ EOF
     fi
     verdict="$(yq e '.verdict' "$file")"
     # A pass verdict must show its semantic coverage work, not just say tests
-    # passed. This is intentionally a lightweight format guard; the Master still
-    # owns the semantic judgment, while the CLI prevents one-line pass reasons.
+    # passed. Two equivalent forms, either accepted:
+    #   (preferred) a structured `coverage_audit:` list — each entry {claim,
+    #                evidence_refs, sufficiency, why}. Machine-checked for
+    #                completeness: every claim binds >=1 evidence_ref, and every
+    #                cited evidence_ref appears in at least one claim.
+    #   (legacy)     a free-text `reason:` containing the tokens
+    #                Coverage audit: / claim / evidence / sufficiency / conclusion.
+    # This is intentionally a lightweight format guard; the Master still owns the
+    # semantic judgment — the CLI only prevents one-line pass reasons and, for the
+    # structured form, ensures no evidence is cited without a covering claim.
     if [ "$verdict" = "pass" ]; then
-      reason="$(yq e '.reason // ""' "$file")"
-      missing_audit=""
-      for token in 'Coverage audit:' 'claim' 'evidence' 'sufficiency' 'conclusion'; do
-        if ! printf '%s\n' "$reason" | grep -q "$token"; then
-          missing_audit="${missing_audit}${token} "
+      audit_len="$(yq e '.coverage_audit // [] | length' "$file" 2>/dev/null || echo 0)"
+      if [ "${audit_len:-0}" -gt 0 ] 2>/dev/null; then
+        # completeness: each claim must bind >=1 evidence_ref
+        ai=0; missing_ev=""
+        while [ "$ai" -lt "$audit_len" ]; do
+          cev_len="$(yq e ".coverage_audit[$ai].evidence_refs // [] | length" "$file" 2>/dev/null || echo 0)"
+          if [ "${cev_len:-0}" -eq 0 ] 2>/dev/null; then
+            missing_ev="${missing_ev}claim[$ai] "
+          fi
+          ai=$((ai+1))
+        done
+        if [ -n "$missing_ev" ]; then
+          echo "judge apply: pass verdict coverage_audit has claims with no evidence_refs: $missing_ev" >&2
+          exit 1
         fi
-      done
-      if [ -n "$missing_audit" ]; then
-        echo "judge apply: pass verdict reason missing Criteria Coverage Audit fields: $missing_audit" >&2
-        exit 1
+        # every cited evidence_ref must appear in some claim (no orphan evidence)
+        ev_total="$(yq e '.evidence_refs | length' "$file")"
+        ei=0; orphan_ev=""
+        while [ "$ei" -lt "$ev_total" ]; do
+          er="$(yq e ".evidence_refs[$ei]" "$file")"
+          if ! yq e '.coverage_audit[].evidence_refs[]' "$file" 2>/dev/null | grep -qxF "$er"; then
+            orphan_ev="${orphan_ev}$er "
+          fi
+          ei=$((ei+1))
+        done
+        if [ -n "$orphan_ev" ]; then
+          echo "judge apply: pass verdict evidence_refs not bound to any coverage_audit claim: $orphan_ev" >&2
+          exit 1
+        fi
+      else
+        # legacy fallback: free-text reason must contain the audit tokens
+        reason="$(yq e '.reason // ""' "$file")"
+        missing_audit=""
+        for token in 'Coverage audit:' 'claim' 'evidence' 'sufficiency' 'conclusion'; do
+          if ! printf '%s\n' "$reason" | grep -q "$token"; then
+            missing_audit="${missing_audit}${token} "
+          fi
+        done
+        if [ -n "$missing_audit" ]; then
+          echo "judge apply: pass verdict reason missing Criteria Coverage Audit fields: $missing_audit (or provide a structured coverage_audit: list)" >&2
+          exit 1
+        fi
       fi
     fi
     # If verdict=pass, the cited evidence must satisfy the criterion's
@@ -316,13 +356,12 @@ evidence_hash: "$ehash"
 evidence_basis_hash: "$basis"
 # criterion_hash and goal_hash are injected automatically at apply time.
 verdict: $vcmd
-reason: |-
-  Coverage audit:
-  - claim: "TODO: decompose criterion.statement into atomic claims"
-    evidence: [TODO]
-    sufficiency: TODO
-    why: "TODO"
-  conclusion: "TODO: fill before 'judge apply'. A pass verdict's reason must contain the tokens: Coverage audit: / claim / evidence / sufficiency / conclusion."
+coverage_audit:
+  - claim: "TODO: decompose criterion.statement into atomic claims; map each claim to evidence"
+    evidence_refs: [$refs_yaml]
+    sufficiency: sufficient
+    why: "TODO: why the cited evidence proves this claim"
+reason: "TODO: one-line conclusion. The structured coverage_audit above is the preferred form; a free-text reason containing 'Coverage audit:' / claim / evidence / sufficiency / conclusion is still accepted as a fallback."
 context: fresh
 evaluated_by: master
 EOF
