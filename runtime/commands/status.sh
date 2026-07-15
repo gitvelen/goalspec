@@ -185,6 +185,36 @@ fi
 [ -n "$BLOCKERS" ] || BLOCKERS="(none)"
 [ -n "$CLOSE_BLOCKERS" ] || CLOSE_BLOCKERS="(none)"
 
+# Review freshness: surface intake / intake-capture review state so the agent
+# need not hand-compare sha256 (approve/freeze still enforce this as a hard
+# gate; this is a pre-gate visibility hint, not a new gate). Reported only in
+# pre-freeze drafting states; once frozen, staleness already enters BLOCKERS.
+REVIEW_FRESHNESS="(n/a)"
+case "$STATE" in
+  spec_drafting|awaiting_human_confirmation)
+    _rfv="$GOALSPEC_ROOT/active/reviews.yaml"
+    _rfs=""
+    for _kind in intake intake-capture; do
+      if [ ! -f "$_rfv" ]; then
+        _st="missing"
+      else
+        _th="$(yq e ".reviews[] | select(.kind == \"$_kind\") | .target_hash // \"\"" "$_rfv" 2>/dev/null | tail -1)"
+        if [ -z "$_th" ] || [ "$_th" = "null" ]; then
+          _st="missing"
+        else
+          case "$_kind" in
+            intake) _cur="$(goalspec_goal_hash)" ;;
+            intake-capture) _cur="$(goalspec_intake_capture_hash)" ;;
+          esac
+          if [ "$_th" = "$_cur" ]; then _st="fresh"; else _st="stale"; fi
+        fi
+      fi
+      _rfs="${_rfs}${_kind}=${_st} "
+    done
+    REVIEW_FRESHNESS="${_rfs% }"
+    ;;
+esac
+
 if [ "$mode" = "json" ]; then
   yq -o=json -I=0 '.' <<EOF
 state: "$STATE"
@@ -216,6 +246,7 @@ BLOCKERS: $BLOCKERS
 CLOSE_BLOCKERS: $CLOSE_BLOCKERS
 UNMET_CRITERIA: $UNMET_CRITERIA
 CRITERIA_STATUS: $CRITERIA_STATUS
+REVIEW_FRESHNESS: $REVIEW_FRESHNESS
 SCOPE_HASH: $(goalspec_scope_hash 2>/dev/null || echo "")
 NEXT_USER_ACTION: $NEXT_USER_ACTION
 EOF

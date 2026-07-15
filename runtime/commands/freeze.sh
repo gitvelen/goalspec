@@ -54,7 +54,16 @@ fi
 # correctness gate; "all work verdict-verified" is owned by ready_to_close via
 # goalspec_close_readiness_blockers, not by this gate.
 if ! goalspec_git_worktree_clean; then
-  fail "business worktree has uncommitted changes relative to HEAD; commit or stash before freeze"
+  _dirty=""
+  while IFS= read -r _f; do
+    [ -z "$_f" ] && continue
+    goalspec_git_is_framework_file "$_f" && continue
+    _dirty="${_dirty}${_f} "
+  done < <(
+    git -C "$PROJECT_ROOT" diff --name-only HEAD 2>/dev/null
+    git -C "$PROJECT_ROOT" ls-files --others --exclude-standard 2>/dev/null
+  )
+  fail "business worktree has uncommitted changes relative to HEAD: ${_dirty:-<unlisted>}; commit, stash, or add to .gitignore as appropriate"
 fi
 
 # 7.5 reopen recovery requires an explicit, human-reviewed impact analysis.
