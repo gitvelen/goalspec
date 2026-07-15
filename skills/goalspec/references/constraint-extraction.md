@@ -44,7 +44,7 @@ Use these fields for project constraints:
   level: hard
   statement: Do not log secrets or user private data.
   source_refs:
-    - conversation
+    - "[D5]"          # capture Confirmed Decision id (NOT a vague "conversation")
   applies_to:
     - all-goals
 ```
@@ -56,8 +56,35 @@ Use these fields for goal constraints:
   level: hard
   statement: Cache must not change generated output semantics.
   source_refs:
-    - docs/spec.md
+    - "[D3]"          # capture Confirmed Decision id
+    - docs/spec.md    # or a concrete sourced-doc path from intake-sources
 ```
+
+### Source references (provenance traceability)
+
+Every `source_refs` entry MUST be grep-locatable, so the intake-capture review
+can mechanically verify the constraint traces back to user intent:
+
+- A capture **Confirmed Decision id** (e.g. `[D8]`) or **Acceptance Signal id**
+  for anything the user said. The capture numbers user decisions D1..Dn; cite
+  that id, not the whole conversation.
+- A concrete sourced-doc path (e.g. `docs/spec.md`, matching `intake-sources.yaml`)
+  for claims adopted from an intake source (also subject to the source-claim
+  laundering review).
+
+Do NOT use the vague `conversation`. It cannot be grepped to a specific user
+point, so the review cannot confirm the constraint actually traces to what the
+user said — a silent downgrade or a dropped acceptance signal then sails through
+uncited.
+
+### Downgrades must be explicit
+
+A strong user constraint that you cannot make directly observable may be marked
+`level: soft`, but the `statement` MUST say why (e.g. "soft: not directly
+observable; enforced via criterion CRIT-X") and which Decision it downgrades. A
+silent hard→soft downgrade — or dropping a strong acceptance signal entirely — is
+caught by the intake-capture review `downgrade` check. Prefer decomposing the
+strong constraint into observable sub-constraints (hard) over downgrading it.
 
 ## Verifiability
 

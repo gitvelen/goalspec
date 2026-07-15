@@ -35,6 +35,9 @@ Emit a YAML document to stdout with:
   blocking_questions: []
   notes: |
     <your reasoning>
+
+After emitting the file, re-read its notes block to confirm no garbled or
+fragmented text crept in — a known failure mode when emitting long YAML.
 EOF
         ;;
       intake-capture)
@@ -74,9 +77,18 @@ Verify concretely (do NOT judge vaguely):
   3. laundering — any [assistant_defaulted] or [inferred] decision that affects
      the goal, scope, or implementation direction MUST be an open_question, not
      a frozen Confirmed Decision. Flag each such case as blocking.
-  4. downgrade — compare the capture's wording against the conversation for
-     semantic weakening (e.g. a product positioning the user stated strongly
-     that the capture reduces to a generic "notification"). Flag as blocking.
+  4. downgrade — compare the capture's AND constraint-suggestions.yaml's wording
+     against the conversation for semantic weakening (e.g. a product positioning
+     the user stated strongly that the capture reduces to a generic
+     "notification"), AND for level/atomicity drift between the capture and its
+     constraint projection: a strong user acceptance signal that the constraints
+     drop entirely, weaken hard→soft without a stated observability reason,
+     split apart, or bury as implicit = blocking. Mechanically verify (grep):
+     every [user_said]-tagged strong Acceptance Signal in the capture is
+     referenced by >=1 constraint's source_refs via a CONCRETE id (a capture
+     Decision id like [D8] or an Acceptance Signal id), not a vague
+     "[conversation]"; an unreferenced strong signal, or one cited only by
+     "[conversation]", is blocking.
   5. conversational reversals — if the user reversed or corrected an earlier
      statement, the capture must reflect the FINAL position, not the superseded
      one. Flag any stale/superseded decision still present.
@@ -110,6 +122,9 @@ Emit a YAML document with:
   notes: |
     For each checked user point: state where it landed in the capture (section +
     provenance) or that it is missing. Concrete entries only.
+
+After emitting the file, re-read its notes block to confirm no garbled or
+fragmented text crept in — a known failure mode when emitting long YAML.
 EOF
         ;;
       contract|criteria)
@@ -153,6 +168,9 @@ Emit a YAML document with:
   blocking_questions: []
   notes: |
     <reasoning>
+
+After emitting the file, re-read its notes block to confirm no garbled or
+fragmented text crept in — a known failure mode when emitting long YAML.
 EOF
         ;;
       *) echo "unknown review kind: $kind" >&2; exit 2 ;;
@@ -162,8 +180,15 @@ EOF
     file="${1:-}"
     [ -n "$file" ] || { echo "usage: goalspec review apply <file>" >&2; exit 2; }
     [ -f "$file" ] || { echo "review file not found: $file" >&2; exit 1; }
+    if ! yq e '.' "$file" >/dev/null 2>&1; then
+      echo "review file is not valid YAML: $file" >&2; exit 1
+    fi
     kind="$(yq e '.kind' "$file")"
     result="$(yq e '.result' "$file")"
+    case "$result" in
+      pass|fail) ;;
+      *) echo "review file has invalid result (expected pass|fail): ${result:-<empty>}" >&2; exit 1 ;;
+    esac
     case "$kind" in
       intake)
         # intake review applies to goal.md
