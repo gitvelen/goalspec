@@ -147,32 +147,39 @@ EOF
     if [ "$verdict" = "pass" ]; then
       audit_len="$(yq e '.coverage_audit // [] | length' "$file" 2>/dev/null || echo 0)"
       if [ "${audit_len:-0}" -gt 0 ] 2>/dev/null; then
-        # completeness: each claim must bind >=1 evidence_ref
+        # completeness: each claim must bind >=1 evidence_ref.
+        # Single yq pass over all claim evidence_refs lengths, then a local
+        # while-read to find zeros — avoids forking one yq per claim (slow and,
+        # under some yq builds, flaky on long claim lists).
+        claim_lens="$(yq e '.coverage_audit[].evidence_refs // [] | length' "$file" 2>/dev/null)"
         ai=0; missing_ev=""
-        while [ "$ai" -lt "$audit_len" ]; do
-          cev_len="$(yq e ".coverage_audit[$ai].evidence_refs // [] | length" "$file" 2>/dev/null || echo 0)"
-          if [ "${cev_len:-0}" -eq 0 ] 2>/dev/null; then
+        while IFS= read -r cl; do
+          [ -z "$cl" ] && continue
+          if [ "${cl:-0}" -eq 0 ] 2>/dev/null; then
             missing_ev="${missing_ev}claim[$ai] "
           fi
           ai=$((ai+1))
-        done
+        done <<<"$claim_lens"
         if [ -n "$missing_ev" ]; then
           echo "judge apply: pass verdict coverage_audit has claims with no evidence_refs: $missing_ev" >&2
           exit 1
         fi
-        # every cited evidence_ref must appear in some claim (no orphan evidence)
-        ev_total="$(yq e '.evidence_refs | length' "$file")"
-        ei=0; orphan_ev=""
-        while [ "$ei" -lt "$ev_total" ]; do
-          er="$(yq e ".evidence_refs[$ei]" "$file")"
-          if ! yq e '.coverage_audit[].evidence_refs[]' "$file" 2>/dev/null | grep -qxF "$er"; then
-            orphan_ev="${orphan_ev}$er "
+        # every cited evidence_ref must appear in some claim (no orphan evidence).
+        # Take the coverage_audit evidence set and the verdict evidence set once,
+        # diff with comm — no longer fork yq|grep per evidence_ref. The old form
+        # (`yq ... | grep -qxF`) let grep -q's early exit raise SIGPIPE under
+        # pipefail, falsely flagging orphans and rejecting verdicts nondeterministically,
+        # which pushed the AI into brute-force apply retry loops.
+        coverage_evs="$(LC_ALL=C yq e '.coverage_audit[].evidence_refs[]' "$file" 2>/dev/null | LC_ALL=C sort -u)"
+        verdict_evs="$(LC_ALL=C yq e '.evidence_refs[]' "$file" 2>/dev/null | LC_ALL=C sort -u)"
+        if [ -n "$verdict_evs" ]; then
+          orphan_ev="$(LC_ALL=C comm -23 \
+            <(printf '%s\n' "$verdict_evs") \
+            <(printf '%s\n' "$coverage_evs") | tr '\n' ' ')"
+          if [ -n "$orphan_ev" ]; then
+            echo "judge apply: pass verdict evidence_refs not bound to any coverage_audit claim: $orphan_ev" >&2
+            exit 1
           fi
-          ei=$((ei+1))
-        done
-        if [ -n "$orphan_ev" ]; then
-          echo "judge apply: pass verdict evidence_refs not bound to any coverage_audit claim: $orphan_ev" >&2
-          exit 1
         fi
       else
         # legacy fallback: free-text reason must contain the audit tokens
@@ -312,6 +319,89 @@ EOF
       capped|stalled) goalspec_harness_emit_candidate "$t1_outcome" ;;
     esac
     ;;
+  record)
+    # One-shot verdict assembly + apply. Builds a hash-correct verdict YAML from
+    # CLI args and hands it to the apply path, so the AI never hand-writes
+    # verdict YAML — the source of field-corruption / hash-misalignment rework
+    # (verdict value glued to contract_hash, etc.) seen in long sessions. record
+    # ONLY assembles YAML; every gate (state/schema/hash/coverage_audit/
+    # evidence_requirement_refs/sensor) still runs in apply. A pass verdict
+    # requires --coverage-claim: record does NOT auto-fabricate a placeholder
+    # claim, so it cannot shortcut around the structured coverage_audit (v0008
+    # anti-silent-pass intent). Non-pass verdicts (insufficient/blocked/...) need
+    # no coverage_audit and are the high-frequency main use case.
+    crit="${1:-}"; shift || true
+    vcmd="insufficient"; refs=""; reason=""; claim=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --verdict) vcmd="$2"; shift 2 ;;
+        --evidence) refs="$2"; shift 2 ;;
+        --reason) reason="$2"; shift 2 ;;
+        --coverage-claim) claim="$2"; shift 2 ;;
+        *) echo "judge record: unknown argument: $1" >&2; exit 2 ;;
+      esac
+    done
+    [ -n "$crit" ] || { echo "usage: goalspec judge record <criteria_id> --evidence <EV-A,EV-B> --verdict <v> --reason <text> [--coverage-claim <text>]" >&2; exit 2; }
+    [ -n "$refs" ] || { echo "judge record: --evidence is required (comma-separated EV ids)" >&2; exit 2; }
+    [ -n "$reason" ] || { echo "judge record: --reason is required" >&2; exit 2; }
+    case "$vcmd" in
+      pass|fail|insufficient|blocked|stale|reopen_required) ;;
+      *) echo "judge record: invalid --verdict '$vcmd' (expected pass|fail|insufficient|blocked|stale|reopen_required)" >&2; exit 2 ;;
+    esac
+    if [ "$vcmd" = "pass" ] && [ -z "$claim" ]; then
+      echo "judge record: pass verdict requires --coverage-claim <text> — record will not auto-fabricate a claim; use 'goalspec judge draft' + apply for a multi-claim audit" >&2
+      exit 2
+    fi
+    [ "$(yq e '.status' "$cf")" = "frozen" ] || { echo "judge record: contract not frozen" >&2; exit 1; }
+    if ! yq e ".criteria[] | select(.id == \"$crit\")" "$cf" >/dev/null 2>&1 || [ -z "$(yq e ".criteria[] | select(.id == \"$crit\") | .id" "$cf")" ]; then
+      echo "judge record: criteria_ref $crit not found in contract" >&2; exit 1
+    fi
+    refs_clean=""; errs=0
+    IFS=',' read -ra ref_arr <<< "$refs"
+    for er in "${ref_arr[@]}"; do
+      er="${er// /}"
+      [ -n "$er" ] || continue
+      if ! yq e ".evidence[] | select(.id == \"$er\") | .id" "$ef" 2>/dev/null | grep -q .; then
+        echo "judge record: evidence_ref $er not found in evidence.yaml" >&2
+        errs=$((errs+1))
+      else
+        refs_clean="${refs_clean:+$refs_clean }$er"
+      fi
+    done
+    [ "$errs" -eq 0 ] || exit 1
+    [ -n "$refs_clean" ] || { echo "judge record: no valid evidence ids in --evidence '$refs'" >&2; exit 1; }
+    chash="$(goalspec_contract_hash)"
+    ehash="$(goalspec_evidence_hash)"
+    basis="$(printf '%s\n' "$refs_clean" | tr ' ' '\n' | goalspec_evidence_basis_hash 2>/dev/null || true)"
+    [ -n "$basis" ] || { echo "judge record: could not compute evidence_basis_hash" >&2; exit 1; }
+    refs_yaml="$(printf '%s\n' "$refs_clean" | tr ' ' '\n' | sed 's/^/"/;s/$/",/' | tr -d '\n' | sed 's/,$//')"
+    recfile="$(mktemp)"
+    cat > "$recfile" <<EOF
+criteria_ref: "$crit"
+evidence_refs: [$refs_yaml]
+contract_hash: "$chash"
+evidence_hash: "$ehash"
+evidence_basis_hash: "$basis"
+verdict: $vcmd
+context: fresh
+evaluated_by: master
+EOF
+    # Inject reason (and the real coverage claim for pass) via yq+strenv so
+    # user-supplied text is quoted/escaped safely. printf/cat assembly of long
+    # multi-line text is exactly what produced the field corruption this command
+    # exists to eliminate.
+    REC_REASON="$reason" yq -i '.reason = strenv(REC_REASON)' "$recfile"
+    if [ "$vcmd" = "pass" ]; then
+      REC_CLAIM="$claim" yq -i \
+        '.coverage_audit = [{"claim": strenv(REC_CLAIM), "evidence_refs": .evidence_refs, "sufficiency": "sufficient", "why": "see reason"}]' \
+        "$recfile"
+    fi
+    # Run apply in a child shell (every gate still runs), then clean up the
+    # temp verdict file regardless of outcome.
+    bash "${BASH_SOURCE[0]}" apply "$recfile"; rc=$?
+    rm -f "$recfile"
+    exit $rc
+    ;;
   draft)
     crit="${1:-}"; shift || true
     vcmd="pass"; refs=""
@@ -367,6 +457,6 @@ evaluated_by: master
 EOF
     ;;
   *)
-    echo "usage: goalspec judge prompt|apply|draft" >&2; exit 2
+    echo "usage: goalspec judge prompt|apply|record|draft" >&2; exit 2
     ;;
 esac

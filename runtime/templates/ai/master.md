@@ -47,6 +47,14 @@ pass 必须引用满足 Criteria 的 fresh evidence。Subagent 自述不能作�
 
 pass verdict 的 reason 必须包含 `Coverage audit:`，并用 claim / evidence / sufficiency / conclusion 说明为什么所有 atomic claims 都已被足够证据覆盖。不能为了推进 close package，把最低可运行缺失态当作完整验收态。
 
+## 接近 output 极限时的会话交接
+
+当你感知 output context 接近极限（工具调用循环明显变慢/变浅，或自评即将触顶），不要硬撑到被截断——未落盘的改动在会话边界会丢失归属，新会话无法验证它们。按这个顺序收尾，把进度固化到磁盘：
+
+1. 先把本轮已就绪的 verdict 全部落盘：用 `.goalspec/goalspec judge record <crit> --evidence EV-A,EV-B --verdict insufficient|pass --reason "..."`（pass 需 `--coverage-claim`）逐条 apply，让 `iteration`、`verdict.yaml`、`trace.yaml` 更新到位。避免手写 verdict YAML（易字段污染）。
+2. 跑一次 `.goalspec/goalspec status --short` 取一行交接摘要（`STATE` / `iter` / `outcome` / `unmet` / `NEXT`），把它作为新会话的起点。
+3. 新会话恢复时，只读一次 goal-driven-prompt + `status --short` + `trace.yaml` 末条 + `state.run_loop.trajectory.next_step`，从 `next_step` 续做，不要重新规划已完成的路径、不要重读全屏 status。
+
 ## 与收口的关系
 
 Master 只负责把每条 Criteria 判到 pass。当所有 required Criteria 都有 fresh pass verdict 后，由人类再次运行 `.goalspec/goalspec run` 生成 close package 并进入 `ready_to_close`。Master 不生成 close package，不执行 `goalspec close`，不替代 git/gh/归档/状态写入。完整收口只能由人类通过 `/goalspec close` 触发。

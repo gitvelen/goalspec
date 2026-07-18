@@ -167,4 +167,136 @@ else
   [ "${d_claim_ev:-0}" -ge 2 ] && ok "draft coverage_audit pre-fills the real evidence_refs" || bad "draft coverage_audit evidence_refs not pre-filled (got $d_claim_ev)"
 fi
 
+# Cases F/G: longer evidence list (5 EV + 5 claims). Regression guard for the
+# comm-based orphan/completeness check that replaced the old per-EV yq|grep loop
+# (flaky on long lists — nondeterministically rejected verdicts, AI brute-force).
+cat > "$REPO/.goalspec/active/evidence.yaml" <<YML
+evidence:
+  - id: EV-001
+    contract_hash: "$chash"
+    criteria_refs: [CRIT-001]
+    evidence_requirement_refs: [EVIDREQ-001]
+    command: "true"
+    exit_code: 0
+    artifact_paths: []
+    provider_source: not_required
+    runtime_boundary: browser
+    persistence: memory
+    completion_level: integrated_runtime
+    reproducible: true
+    produced_by: subagent
+    produced_at: 2026-06-15T00:00:00Z
+    residual_risk: {level: none, notes: ""}
+  - id: EV-002
+    contract_hash: "$chash"
+    criteria_refs: [CRIT-001]
+    evidence_requirement_refs: [EVIDREQ-001]
+    command: "true"
+    exit_code: 0
+    artifact_paths: []
+    provider_source: not_required
+    runtime_boundary: browser
+    persistence: memory
+    completion_level: integrated_runtime
+    reproducible: true
+    produced_by: subagent
+    produced_at: 2026-06-15T00:00:00Z
+    residual_risk: {level: none, notes: ""}
+  - id: EV-003
+    contract_hash: "$chash"
+    criteria_refs: [CRIT-001]
+    evidence_requirement_refs: [EVIDREQ-001]
+    command: "true"
+    exit_code: 0
+    artifact_paths: []
+    provider_source: not_required
+    runtime_boundary: browser
+    persistence: memory
+    completion_level: integrated_runtime
+    reproducible: true
+    produced_by: subagent
+    produced_at: 2026-06-15T00:00:00Z
+    residual_risk: {level: none, notes: ""}
+  - id: EV-004
+    contract_hash: "$chash"
+    criteria_refs: [CRIT-001]
+    evidence_requirement_refs: [EVIDREQ-001]
+    command: "true"
+    exit_code: 0
+    artifact_paths: []
+    provider_source: not_required
+    runtime_boundary: browser
+    persistence: memory
+    completion_level: integrated_runtime
+    reproducible: true
+    produced_by: subagent
+    produced_at: 2026-06-15T00:00:00Z
+    residual_risk: {level: none, notes: ""}
+  - id: EV-005
+    contract_hash: "$chash"
+    criteria_refs: [CRIT-001]
+    evidence_requirement_refs: [EVIDREQ-001]
+    command: "true"
+    exit_code: 0
+    artifact_paths: []
+    provider_source: not_required
+    runtime_boundary: browser
+    persistence: memory
+    completion_level: integrated_runtime
+    reproducible: true
+    produced_by: subagent
+    produced_at: 2026-06-15T00:00:00Z
+    residual_risk: {level: none, notes: ""}
+YML
+ehash="$(cur_evidence_hash)"
+
+# Case F: 5 EV each bound to its own claim -> accepted (long list, no flaky orphan).
+cat > "$tmp/f.yaml" <<YML
+criteria_ref: CRIT-001
+evidence_refs: [EV-001, EV-002, EV-003, EV-004, EV-005]
+contract_hash: "$chash"
+evidence_hash: "$ehash"
+verdict: pass
+coverage_audit:
+  - {claim: "c1", evidence_refs: [EV-001], sufficiency: sufficient, why: "w1"}
+  - {claim: "c2", evidence_refs: [EV-002], sufficiency: sufficient, why: "w2"}
+  - {claim: "c3", evidence_refs: [EV-003], sufficiency: sufficient, why: "w3"}
+  - {claim: "c4", evidence_refs: [EV-004], sufficiency: sufficient, why: "w4"}
+  - {claim: "c5", evidence_refs: [EV-005], sufficiency: sufficient, why: "w5"}
+reason: "all five covered"
+context: fresh
+evaluated_by: master
+YML
+if "$REPO_GS" judge apply "$tmp/f.yaml" >/dev/null 2>&1; then
+  ok "5-EV/5-claim coverage_audit accepted (comm check stable on long lists)"
+else
+  bad "5-EV/5-claim coverage_audit rejected (comm check regressed)"
+fi
+
+# Case G: 5 EV cited but EV-005 not bound to any claim -> orphan rejected (long list).
+cat > "$tmp/g.yaml" <<YML
+criteria_ref: CRIT-001
+evidence_refs: [EV-001, EV-002, EV-003, EV-004, EV-005]
+contract_hash: "$chash"
+evidence_hash: "$ehash"
+verdict: pass
+coverage_audit:
+  - {claim: "c1", evidence_refs: [EV-001], sufficiency: sufficient, why: "w1"}
+  - {claim: "c2", evidence_refs: [EV-002], sufficiency: sufficient, why: "w2"}
+  - {claim: "c3", evidence_refs: [EV-003], sufficiency: sufficient, why: "w3"}
+  - {claim: "c4", evidence_refs: [EV-004], sufficiency: sufficient, why: "w4"}
+reason: "EV-005 silently cited but never audited"
+context: fresh
+evaluated_by: master
+YML
+if "$REPO_GS" judge apply "$tmp/g.yaml" >"$tmp/g.out" 2>"$tmp/g.err"; then
+  bad "5-EV orphan (EV-005 unbound) accepted on long list"
+else
+  if grep -q "not bound to any coverage_audit claim" "$tmp/g.err" && grep -q "EV-005" "$tmp/g.err"; then
+    ok "5-EV orphan (EV-005) correctly rejected on long list"
+  else
+    bad "5-EV orphan rejected but wrong diagnostic: $(cat "$tmp/g.err")"
+  fi
+fi
+
 [ "$TESTS_FAIL" -eq 0 ]
