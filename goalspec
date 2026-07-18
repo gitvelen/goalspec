@@ -62,6 +62,11 @@ Internal commands:
   evidence check                   Validate evidence.yaml
   judge prompt [criteria_id]       Print a Master verdict prompt
   judge apply <verdict.yaml>       Apply a Master verdict file
+  judge record <crit> --evidence EV-A,EV-B --verdict <v>
+                                   --reason <text> [--coverage-claim <text>]
+                                Assemble a hash-correct verdict from args and
+                                apply it in one shot (no hand-written YAML).
+                                pass requires --coverage-claim (no placeholder).
   scope-check [--suggest]       Check that diffs are within scope
   validate [target] [--strict] [--json]
                                 Validate active/ artifacts (collect-all, no

@@ -85,10 +85,11 @@ fi
 
 # F) edit file outside contract allowed_paths (billing is not under src/**)
 mkdir -p "$REPO/billing"; echo x > "$REPO/billing/x.txt"
-if "$REPO_GS" scope-check >/dev/null 2>&1; then
+if "$REPO_GS" scope-check >"$tmp/f.out" 2>"$tmp/f.err"; then
   bad "scope-check did not catch out-of-scope path write"
 else
   ok "scope-check caught out-of-scope path write"
+  grep -q 'scope amend' "$tmp/f.err" && ok "scope-check failure hints at 'scope amend' escape hatch" || bad "scope-check failure missing scope amend hint: $(cat "$tmp/f.err")"
 fi
 /bin/rm -rf "$REPO/billing"
 

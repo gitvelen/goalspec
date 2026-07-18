@@ -8,7 +8,10 @@ trap '' PIPE
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)/load.sh"
 
 mode="text"
-if [ "${1:-}" = "--json" ]; then mode="json"; fi
+case "${1:-}" in
+  --json) mode="json" ;;
+  --short|--oneline) mode="short" ;;
+esac
 
 state_file="$GOALSPEC_ROOT/active/state.yaml"
 cf="$GOALSPEC_ROOT/active/contract.yaml"
@@ -214,6 +217,22 @@ case "$STATE" in
     REVIEW_FRESHNESS="${_rfs% }"
     ;;
 esac
+
+if [ "$mode" = "short" ]; then
+  # One-line status for the run loop, where the agent only needs "what's left,
+  # what's next" and the full multi-line render (+LOOP_CONTRACT) burns tokens on
+  # every poll. Default multi-line output is unchanged; --short is opt-in.
+  _iter="$(yq e '.run_loop.iteration // 0' "$state_file" 2>/dev/null || echo 0)"
+  _max="$(goalspec_delivery_profile_value '.run_loop.max_iterations' '40' 2>/dev/null || echo 40)"
+  _outcome="$(yq e '.run_loop.last_outcome // ""' "$state_file" 2>/dev/null || echo "")"
+  case "$_outcome" in
+    capped|stalled) ;;
+    *) _outcome="step" ;;
+  esac
+  printf 'STATE=%s iter=%s/%s outcome=%s blockers="%s" unmet="%s" | NEXT: %s\n' \
+    "$STATE" "$_iter" "$_max" "$_outcome" "$BLOCKERS" "$UNMET_CRITERIA" "$NEXT_USER_ACTION"
+  exit 0
+fi
 
 if [ "$mode" = "json" ]; then
   yq -o=json -I=0 '.' <<EOF

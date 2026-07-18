@@ -151,6 +151,19 @@ Verify:
     * every Success Model field (user_visible_success / system_observable_success
       / minimum_acceptable_result / final_completion_signal) is covered.
     List any uncovered branch as a blocking finding.
+  - criterion interactions (the highest-leverage blind spot schema.sh cannot
+    check — implicit conflicts the drafter did not declare). Build a criterion
+    interaction view and report:
+    * semantic conflicts — pairs of criteria that CANNOT both pass under the
+      same implementation (e.g. one requires "an LLM failure aborts the workflow"
+      while another requires "the end-to-end run completes with promote>0").
+      For each, state the exact reason and whether it is resolvable by rewording,
+      splitting the goal, or is a true spec contradiction. A true contradiction
+      is a blocking finding — better caught here, before the run, than discovered
+      mid-loop when the AI stalls and asks the human.
+    * risky coupling — clusters of criteria sharing one evidence_requirement or
+      one evidence source, where a single failure blocks many at once; recommend
+      diversifying evidence or splitting criteria when the coupling is tight.
   - out_of_scope is reflected as hard constraints.
   - each criterion is decidable and not too weak/strong/vague.
   - each criterion's evidence_requirement_refs can prove that criterion.

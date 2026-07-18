@@ -84,6 +84,26 @@ if [ "${n_locked:-0}" -gt 0 ]; then
   echo "freeze: $n_locked locked regression(s) — verify they are reflected in contract.required_regressions"
 fi
 
+# Advisory (non-blocking): estimate single-run closure difficulty from the
+# evidence/criteria mix. The real driver of "single run blew the context budget"
+# is the share of runtime/部署-dependent evidence (browser/api/integration/db)
+# and judgment-kind criteria — not the raw criteria count. Surface it at freeze
+# so the human can split the goal or plan staged deployment BEFORE the run burns
+# tokens discovering it. Does not block freeze.
+_total_req="$(yq e '[.evidence_requirements[]] | length' "$cf" 2>/dev/null || echo 0)"
+_runtime_req="$(yq e '[.evidence_requirements[] | select(.runtime_boundary == "browser" or .runtime_boundary == "api" or .runtime_boundary == "integration" or .runtime_boundary == "db")] | length' "$cf" 2>/dev/null || echo 0)"
+_total_crit="$(yq e '[.criteria[]] | length' "$cf" 2>/dev/null || echo 0)"
+_judgment_crit="$(yq e '[.criteria[] | select(.kind == "judgment")] | length' "$cf" 2>/dev/null || echo 0)"
+if [ "${_total_req:-0}" -gt 0 ] && [ "$(( _runtime_req * 100 / _total_req ))" -ge 50 ]; then
+  echo "BUDGET_WARNING: ${_runtime_req}/${_total_req} evidence_requirement 依赖 runtime (browser/api/integration/db)，${_judgment_crit}/${_total_crit} criteria 为 judgment-kind — 单 run 大概率 context 见底；建议按 goal.md ### Workunit 拆 goal 或分批部署（advisory，不阻塞 freeze）"
+elif [ "${_total_crit:-0}" -gt 0 ] && [ "$(( _judgment_crit * 100 / _total_crit ))" -ge 40 ]; then
+  echo "BUDGET_WARNING: ${_judgment_crit}/${_total_crit} criteria 为 judgment-kind — 单 run 难闭环（需人类/Master 裁决）；建议拆 goal（advisory，不阻塞 freeze）"
+fi
+if [ "${_runtime_req:-0}" -eq 0 ] && [ "${_total_req:-0}" -gt 0 ] \
+  && grep -qE '用户|页面|浏览器|交互|UI|登录|click|界面|渲染|page|browser|user' "$GOALSPEC_ROOT/active/goal.md" 2>/dev/null; then
+  echo "RUNTIME_EVIDENCE_WARNING: 0 runtime-boundary evidence_requirement 但 goal 含用户可见行为 — silent-pass 风险；建议至少一条 browser/integration evidence（advisory，不阻塞 freeze）"
+fi
+
 # Freeze.
 chash="$(goalspec_contract_hash)"
 shash="$(goalspec_scope_hash)"
