@@ -49,4 +49,23 @@ mkdir -p "$REPO/.goalspec/history/v0002" "$REPO/.goalspec/history/junk" "$REPO/.
 outD="$(run_version)"; vD="$(printf '%s\n' "$outD" | tail -1)"
 if [ "$vD" = "v0003" ]; then ok "V1-D: non-numeric history dirs ignored -> v0003"; else bad "V1-D: expected v0003 got '$vD' out=$outD"; fi
 
+# Case E: history has v0008 (first version whose number contains the octal-trap
+# digit 8). Regression for the $((max_n+1)) octal bug where max_n="0008" aborted
+# version inference and yielded an empty vname. Must now infer v0009 cleanly.
+rm -f "$REPO/.goalspec/project/versions.yaml"
+rm -rf "$REPO/.goalspec/history"
+mkdir -p "$REPO/.goalspec/history/v0008"
+outE="$(run_version)"; vE="$(printf '%s\n' "$outE" | tail -1)"
+if [ "$vE" = "v0009" ]; then ok "V1-E: v0008 (octal-trap digit) -> v0009"; else bad "V1-E: expected v0009 got '$vE' out=$outE"; fi
+if printf '%s\n' "$outE" | grep -q "value too great for base"; then bad "V1-E: octal error leaked to stderr"; else ok "V1-E: no octal error"; fi
+
+# Case F: history has v0010. Bash parses the leading-zero 0010 as octal 8, so the
+# unfixed $((max_n+1)) would silently yield v0009 (wrong value, no error). With
+# the 10# fix this must yield v0011 — covers the "miscomputes without erroring"
+# branch that a format-only guard cannot catch.
+rm -rf "$REPO/.goalspec/history"
+mkdir -p "$REPO/.goalspec/history/v0010"
+outF="$(run_version)"; vF="$(printf '%s\n' "$outF" | tail -1)"
+if [ "$vF" = "v0011" ]; then ok "V1-F: v0010 -> v0011 (not the octal-miscomputed v0009)"; else bad "V1-F: expected v0011 got '$vF' out=$outF"; fi
+
 [ "$TESTS_FAIL" -eq 0 ]
