@@ -135,6 +135,16 @@ if [ "$gate_status" = "not_started" ] || [ "$gate_status" = "failed" ] || [ "$ga
     vname="$(yq e '.close.history_version // ""' "$state_file")"
     if [ -z "$vname" ] || [ "$vname" = "null" ]; then
       vname="$(goalspec_close_next_history_version)"
+      # Invariant: vname must be a non-zero vNNNN. A version-inference failure
+      # (e.g. the octal-trap bug) yields an empty/garbage vname; without this
+      # guard the empty value silently archives to history/ (root), corrupts
+      # versions.yaml, and writes an empty history_version. Fail fast instead.
+      # Note: this guards format/non-zero only, not semantic correctness (that
+      # the value equals max+1); semantic correctness rests on the 10# fix in
+      # goalspec_close_next_history_version.
+      if ! [[ "$vname" =~ ^v[0-9]+$ ]] || [ "${vname#v}" -lt 1 ]; then
+        fail_close "could not determine history version (got '$vname'); refusing to archive to history/ root"
+      fi
       goalspec_close_apply_memory_patch
       goalspec_close_archive_active "$vname"
       chash="$(goalspec_contract_hash)"

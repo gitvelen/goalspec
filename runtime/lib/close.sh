@@ -500,7 +500,7 @@ goalspec_close_next_history_version() {
       [ -d "$dd" ] || continue
       n="$(basename "$dd")"
       n="${n#v}"
-      [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -gt "$max_n" ] && max_n="$n"
+      [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -gt "$max_n" ] && max_n=$((10#$n))
     done
     next_n=$((max_n+1))
     if [ "$max_n" -gt 0 ]; then
@@ -511,10 +511,15 @@ goalspec_close_next_history_version() {
 }
 
 goalspec_close_archive_active() {
-  local vname="$1" hdir="$GOALSPEC_ROOT/history/$vname" f
+  local vname="$1" item
+  local hdir="$GOALSPEC_ROOT/history/$vname"
   mkdir -p "$hdir"
-  for f in goal.md contract.yaml goal-driven-prompt.md evidence.yaml verdict.yaml trace.yaml regressions.yaml memory-patch.yaml questions.yaml reviews.yaml state.yaml close-package.yaml close-package.md reopen-impact.yaml harness-improvement-candidate.yaml scope-amendments.yaml; do
-    [ -f "$GOALSPEC_ROOT/active/$f" ] && cp "$GOALSPEC_ROOT/active/$f" "$hdir/$f"
+  # Archive the entire active/ snapshot (files and subdirs) rather than a fixed
+  # allowlist — an allowlist silently drops new artifact types (it already
+  # missed intake-capture review files), breaking archive completeness.
+  for item in "$GOALSPEC_ROOT/active"/*; do
+    [ -e "$item" ] || continue
+    cp -r "$item" "$hdir/"
   done
 }
 
@@ -527,8 +532,14 @@ goalspec_close_archive_active() {
 # + close.*/git.*) so `status` and history linkage stay queryable until the next
 # start resets the workspace.
 goalspec_close_vacate_active() {
-  local active="$GOALSPEC_ROOT/active" f
-  for f in goal.md goal.yaml contract.yaml contract-review.yaml criteria.yaml constraints.yaml constraint-suggestions.yaml goal-driven-prompt.md evidence.yaml verdict.yaml trace.yaml regressions.yaml memory-patch.yaml questions.yaml reviews.yaml close-package.yaml close-package.md reopen-impact.yaml harness-improvement-candidate.yaml scope-amendments.yaml intake-capture.md intake-conversation.md intake-review.yaml intake-sources.yaml; do
-    [ -f "$active/$f" ] && /bin/rm -f "$active/$f"
+  local active="$GOALSPEC_ROOT/active" item
+  # Remove the entire active/ snapshot except state.yaml (the tombstone). A
+  # fixed allowlist silently leaves new artifact types behind (it already missed
+  # intake-capture review files); globbing everything keeps vacate complete as
+  # the active/ layout evolves.
+  for item in "$active"/*; do
+    [ -e "$item" ] || continue
+    [ "$(basename "$item")" = "state.yaml" ] && continue
+    /bin/rm -rf "$item"
   done
 }
